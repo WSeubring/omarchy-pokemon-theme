@@ -284,6 +284,8 @@ one of 905 inputs, and you would not find out until that day came around. So
 each property is checked across the whole set rather than spot-checked:
 
 ```bash
+tests/run                            # all of them; --quick skips the slow sprite check
+
 python3 tests/validate_contrast.py   # all 905 palettes vs WCAG, and hue drift
 python3 tests/validate_schedule.py   # stability, spread, no near repeats
 python3 tests/validate_sprites.py    # every name resolves to a sprite
@@ -313,6 +315,9 @@ the specific mistake that caused exactly that.
 | `lib/lockscreen.py` | The `shell.lock.toml` that pins the lock screen |
 | `lib/ambient.py` | The `shell.background.toml` that drives the motion |
 | `lib/wallpaper.py` | ImageMagick composition |
+| `lib/state.py` | What is written out now: day, Pokémon, and why |
+| `lib/xdg.py` | The config, state and cache directories |
+| `lib/tomlout.py` | Shared rendering for the generated TOML sections |
 | `data/dex.json` | National dex order, so a name gives an artwork id offline |
 | `data/types.json` | Name → types, from PokéAPI via omarchy-lock-pokemon |
 | `data/type-colors.json` | The eighteen community type colours |
@@ -322,6 +327,7 @@ the specific mistake that caused exactly that.
 | `hooks/theme-set` | Regenerates when you switch to this theme |
 | `bin/pokemon-theme-pick` | The native menu picker over all 905 |
 | `bin/pokemon-theme-menu-install` | Splices the menu rows in and out |
+| `tests/run` | Runs every validator, reporting all failures |
 
 `colors.toml`, `icons.theme`, `shell.lock.toml` and `backgrounds/today.jpg` are
 generated. The wallpaper and the lock file are gitignored — a missing lock file
