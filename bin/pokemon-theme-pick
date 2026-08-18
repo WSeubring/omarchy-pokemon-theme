@@ -1,0 +1,68 @@
+#!/bin/bash
+# Pick a Pokemon from the native omarchy menu.
+#
+# omarchy-menu-select renders a searchable list and reads its options from
+# stdin, so all 905 go in and the menu's own fuzzy search is the autocomplete.
+# That avoids writing 905 rows into the user's omarchy-menu.jsonc, and avoids
+# needing a custom menu provider -- the provider table in the menu plugin is
+# hard-coded in QML and cannot be extended from a config file.
+
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+GEN="$REPO/bin/pokemon-theme-gen"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-pokemon-theme/current"
+
+mode="today"
+case "${1:-}" in
+--pin) mode="pin" ;;
+--today | "") mode="today" ;;
+-h | --help)
+  cat <<USAGE
+Usage: pokemon-theme-pick [--today|--pin]
+
+Opens the omarchy menu to pick a Pokemon.
+
+  --today   use it until midnight (default)
+  --pin     pin it permanently in the user config
+USAGE
+  exit 0
+  ;;
+*)
+  echo "unknown option: $1" >&2
+  exit 1
+  ;;
+esac
+
+command -v omarchy-menu-select >/dev/null ||
+  { echo "omarchy-menu-select not found; needs Omarchy 4" >&2; exit 1; }
+
+current=$(awk '{print $2}' "$STATE" 2>/dev/null || true)
+
+if [[ $mode == pin ]]; then
+  prompt="Pin a Pokemon"
+else
+  prompt="Pokemon for today"
+fi
+
+# "<glyph>\t<label>\t<subtext>": the glyph is displayed but never returned, so
+# the active Pokemon can be ticked without changing what comes back. The
+# selection returns "<label>\t<subtext>" once a subtext is present.
+selection=$(
+  jq -r --arg current "$current" '
+    to_entries
+    | sort_by(.key)
+    | .[]
+    | [(if .key == $current then "✓" else "" end), .key, (.value | join(" / "))]
+    | @tsv
+  ' "$REPO/data/types.json" | omarchy-menu-select "$prompt" -- --width 520
+) || exit 0
+
+name=$(printf '%s' "$selection" | cut -f1)
+[[ -n $name ]] || exit 0
+
+if [[ $mode == pin ]]; then
+  "$GEN" --pin "$name"
+else
+  "$GEN" --pokemon "$name"
+fi
