@@ -10,6 +10,9 @@ inert without it, and writing it anyway means installing the plugin later needs
 no regeneration.
 """
 
+import tomlout
+from tomlout import quote
+
 # The plugin's own default is off, so a theme that says nothing animates nothing.
 # This is the value written when the user opts in.
 DEFAULT_INTENSITY = 0.55
@@ -23,7 +26,7 @@ PAUSE_ON_BATTERY = "low"
 PAUSE_ON_BATTERY_BELOW = 30
 
 
-def section(type_effects, type_colors, colors, types, enabled=True,
+def section(type_effects, type_colors, types, enabled=True,
             intensity=DEFAULT_INTENSITY, header=""):
     """Build the `[background]` block for a Pokemon's types."""
     primary = type_effects[types[0]]["effect"]
@@ -33,27 +36,20 @@ def section(type_effects, type_colors, colors, types, enabled=True,
         secondary = type_effects[types[1]]["effect"]
         secondary_tint = type_colors[types[1]]
 
-    rows = [
-        ("effects", '"%s"' % ("show" if enabled else "hide")),
-        ("effect-primary", '"%s"' % primary),
-        ("effect-secondary", '"%s"' % secondary),
+    rows = (
+        ("effects", quote("show" if enabled else "hide")),
+        ("effect-primary", quote(primary)),
+        ("effect-secondary", quote(secondary)),
         ("effect-secondary-strength", SECONDARY_STRENGTH),
         ("effect-intensity", intensity),
         ("effect-variant", DEFAULT_VARIANT),
         # Shapes take the type colour rather than the palette accent: the accent
         # is lightness-clamped for text contrast, which is the wrong trade-off
         # for a few translucent shapes drifting over a dark wallpaper.
-        ("effect-tint", '"%s"' % type_colors[types[0]]),
-        ("effect-secondary-tint", '"%s"' % secondary_tint),
-        ("pause-when-covered", '"%s"' % PAUSE_WHEN_COVERED),
-        ("pause-on-battery", '"%s"' % PAUSE_ON_BATTERY),
+        ("effect-tint", quote(type_colors[types[0]])),
+        ("effect-secondary-tint", quote(secondary_tint)),
+        ("pause-when-covered", quote(PAUSE_WHEN_COVERED)),
+        ("pause-on-battery", quote(PAUSE_ON_BATTERY)),
         ("pause-on-battery-below", PAUSE_ON_BATTERY_BELOW),
-    ]
-
-    width = max(len(key) for key, _ in rows)
-    lines = ["[background]"]
-    if header:
-        lines.append(header.rstrip("\n"))
-    for key, value in rows:
-        lines.append("%-*s = %s" % (width, key, value))
-    return "\n".join(lines) + "\n"
+    )
+    return tomlout.section("background", rows, header)

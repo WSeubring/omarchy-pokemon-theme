@@ -271,7 +271,7 @@ def main():
     type_effects = load("type-effects.json")
     animate = ambient_plugin_installed() and not args.no_animation
     with open(os.path.join(ROOT, "shell.background.toml"), "w") as fh:
-        fh.write(ambient.section(type_effects, type_colors, colors, kinds,
+        fh.write(ambient.section(type_effects, type_colors, kinds,
                                  enabled=animate, header=header))
 
     lock_path = os.path.join(ROOT, "shell.lock.toml")

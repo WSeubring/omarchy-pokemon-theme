@@ -11,6 +11,9 @@ palette; the two border tokens stay as literal `hyprland.*` references so they
 keep tracking the Hyprland gradient instead of being frozen here.
 """
 
+import tomlout
+from tomlout import quote
+
 # Mirrors the [lock] block of default/themed/shell.toml.tpl. Values that are not
 # colours are copied verbatim so the lock screen keeps the stock feel.
 BACKGROUND_ALPHA = 0.8
@@ -42,26 +45,17 @@ def section(colors, pokemon_name, header=""):
     rows = (
         # Pinning the name is the whole point of this file; everything below it
         # only exists because the override replaces the section wholesale.
-        ("pokemon-name", '"%s"' % pokemon_name),
-        ("background", '"%s"' % colors["background"]),
+        ("pokemon-name", quote(pokemon_name)),
+        ("background", quote(colors["background"])),
         ("background-alpha", BACKGROUND_ALPHA),
-        ("text", '"%s"' % colors["foreground"]),
-        ("placeholder", '"%s"' % placeholder),
-        ("text-error", '"%s"' % colors["red"]),
-        ("border", '"hyprland.active-border"'),
-        ("border-active", '"hyprland.active-border"'),
-        ("border-error", '"%s"' % colors["red"]),
+        ("text", quote(colors["foreground"])),
+        ("placeholder", quote(placeholder)),
+        ("text-error", quote(colors["red"])),
+        ("border", quote("hyprland.active-border")),
+        ("border-active", quote("hyprland.active-border")),
+        ("border-error", quote(colors["red"])),
         ("border-alpha", BORDER_ALPHA),
-        ("selection", '"%s"' % colors["accent"]),
+        ("selection", quote(colors["accent"])),
         ("selection-alpha", SELECTION_ALPHA),
     )
-    width = max(len(key) for key, _ in rows)
-    # The section header comes first and the comments after it: the splice in
-    # omarchy-theme-set-templates strips the `[lock]` line and re-emits it above
-    # whatever follows, so anything written above it would be relocated anyway.
-    lines = ["[lock]"]
-    if header:
-        lines.append(header.rstrip("\n"))
-    for key, value in rows:
-        lines.append("%-*s = %s" % (width, key, value))
-    return "\n".join(lines) + "\n"
+    return tomlout.section("lock", rows, header)
