@@ -151,12 +151,15 @@ surfaces at once:
 | | On a shiny day |
 | --- | --- |
 | Palette | the shiny artwork's colours — shiny Charizard themes the machine black-and-red, not orange |
-| Wallpaper | eight four-pointed sparkles scattered in front of the creature, and a brighter halo |
+| Wallpaper | seven four-pointed sparkles ringing the creature, and a brighter halo |
 | Ambient motion | `twinkles` in gold takes the second effect slot, and the motion turns up |
 | Lock screen | `pokemon-shiny = always`, so omarchy-lock-pokemon fires its own sparkle animation |
 
-The sparkles are seeded by the Pokémon, so regenerating a wallpaper gives back the
-same wallpaper. A dual type gives up its second ambient effect for the day —
+The sparkles ring the creature rather than landing on it: the placed sprite is
+measured (0.03s) and each sparkle is pushed out along its own angle until its
+points clear that footprint, so a wide Muk and a tall Gengar both get a ring that
+fits them. They are seeded by the Pokémon, so regenerating a wallpaper gives back
+the same wallpaper. A dual type gives up its second ambient effect for the day —
 being shiny is the more interesting fact about it.
 
 The roll itself is deterministic per day and name, so the timer, the boot

@@ -28,18 +28,25 @@ GLOW_FRACTION = 1.5
 # A shiny day should look like one from across the room, so it gets a brighter
 # halo and a scatter of four-pointed sparkles -- the same visual language the
 # games use, and the same one omarchy-lock-pokemon uses on the lock screen.
-SHINY_GLOW = 0.62
-SPARKLE_COUNT = 8
+SHINY_GLOW = 0.56
+SPARKLE_COUNT = 7
 SPARKLE_TINT = "#fff4cf"
 # Points are needle-thin: equal-width strokes read as plus signs, not sparkles.
 SPARKLE_WAIST = 0.10
 SPARKLE_BLUR = 0.002
 # Size and scatter scale with the render, so they hold at any resolution.
-SPARKLE_SIZE = 0.060
-SPARKLE_SPREAD = 0.30
+SPARKLE_SIZE = 0.042
 # Sizes vary by this much of the base, squared, so most are small and a couple
 # are large -- an even spread of sizes looks placed rather than scattered.
 SPARKLE_MIN_SCALE = 0.30
+# Sparkles ring the creature rather than landing on it: a big star across the
+# chest reads as a defect, not as shine. Each one is pushed out until its points
+# clear the sprite's measured footprint, plus this much of the short edge.
+SPARKLE_CLEARANCE = 0.02
+# How far beyond that clearance they can drift.
+SPARKLE_DRIFT = 0.10
+# Screened at less than full strength: the point is a glint, not a light source.
+SPARKLE_OPACITY = 0.72
 
 
 def _run(args):
@@ -62,26 +69,62 @@ def _star(x, y, size, waist):
     ]
 
 
-def _sparkles(seed, width, height, cx, cy, short):
-    """A deterministic scatter of sparkles around (cx, cy).
+def _sparkles(seed, width, height, cx, cy, short, footprint):
+    """A deterministic ring of sparkles around the creature at (cx, cy).
 
     Seeded by the Pokemon, so the same shiny always sparkles the same way -- a
     regenerated wallpaper should be the same wallpaper.
+
+    `footprint` is the placed sprite's (half_width, half_height). Each sparkle is
+    pushed out along its own angle until its points clear that ellipse, so a large
+    one lands beside the creature instead of across it.
     """
     digest = hashlib.sha256(("sparkle:%s" % seed).encode()).digest()
     args = ["-size", "%dx%d" % (width, height), "xc:none",
             "-fill", SPARKLE_TINT, "-stroke", "none"]
     base = short * SPARKLE_SIZE
-    spread = short * SPARKLE_SPREAD
+    clearance = short * SPARKLE_CLEARANCE
+    hx, hy = footprint
     for i in range(SPARKLE_COUNT):
         angle = digest[i * 3] / 255 * 2 * math.pi
-        radius = (0.30 + digest[i * 3 + 1] / 255 * 0.70) * spread
+        drift = digest[i * 3 + 1] / 255 * short * SPARKLE_DRIFT
         scale = SPARKLE_MIN_SCALE + (digest[i * 3 + 2] / 255) ** 2
-        args += _star(int(cx + math.cos(angle) * radius),
-                      # Flattened vertically: the creature is wider than tall.
-                      int(cy + math.sin(angle) * radius * 0.8),
-                      int(base * scale), SPARKLE_WAIST)
-    return args + ["-blur", "0x%d" % max(1, int(short * SPARKLE_BLUR))]
+        size = int(base * scale)
+
+        # Distance from the centre to the footprint's edge along this angle.
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        edge = math.hypot(hx * cos_a, hy * sin_a)
+        radius = edge + size + clearance + drift
+
+        # Clamped inside the canvas: a wide sprite pushes its ring out far, and
+        # a star with its points cut off by the edge looks like a rendering fault.
+        margin = size + 4
+        x = min(max(int(cx + cos_a * radius), margin), width - margin)
+        y = min(max(int(cy + sin_a * radius), margin), height - margin)
+        args += _star(x, y, size, SPARKLE_WAIST)
+    args += ["-blur", "0x%d" % max(1, int(short * SPARKLE_BLUR))]
+    return args + ["-channel", "A", "-evaluate", "multiply",
+                   "%.2f" % SPARKLE_OPACITY, "+channel"]
+
+
+def _footprint(artwork, short):
+    """The placed sprite's half-width and half-height, in pixels.
+
+    Measured from the trimmed artwork (0.03s) rather than guessed from the target
+    area: a wide Pokemon and a tall one of the same area need the sparkles pushed
+    out by very different amounts.
+    """
+    target_area = (short * ARTWORK_FRACTION) ** 2
+    try:
+        out = subprocess.run(
+            ["magick", artwork, "-trim", "+repage", "-format", "%w %h", "info:"],
+            check=True, capture_output=True, text=True).stdout
+        w, h = (int(v) for v in out.split())
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        side = math.sqrt(target_area)
+        return side / 2, side / 2
+    scale = math.sqrt(target_area / float(w * h))
+    return w * scale / 2, h * scale / 2
 
 
 def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
@@ -132,9 +175,11 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
                  "-compose", "over", "-composite"]
 
     if sparkle is not None:
-        # Screened over the creature, not behind it: sparkles in front are what
-        # make it read as shiny rather than as a lit background.
-        args += ["("] + _sparkles(sparkle, width, height, cx, cy, short) + [
+        # Screened over the ground, ringing the creature rather than covering it.
+        footprint = (_footprint(artwork, short) if artwork
+                     else (short * ARTWORK_FRACTION / 2,) * 2)
+        args += ["("] + _sparkles(sparkle, width, height, cx, cy, short,
+                                  footprint) + [
                  ")", "-gravity", "NorthWest", "-geometry", "+0+0",
                  "-compose", "screen", "-composite"]
 
