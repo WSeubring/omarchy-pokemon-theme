@@ -332,6 +332,7 @@ python3 tests/validate_sprites.py    # every name resolves to a sprite
 python3 tests/validate_pins.py       # pin precedence and expiry
 python3 tests/validate_shiny.py      # odds, determinism, config
 python3 tests/validate_render.py     # wallpaper format, no stray temp files
+                                     # (render half needs ImageMagick 7)
 python3 tests/validate_menu.py       # menu splice, idempotency, removal
 ```
 

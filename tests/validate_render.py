@@ -11,7 +11,10 @@ Two bugs live here, and neither announces itself:
   temporary name ending in ".new" makes it guess -- it emits PNG bytes into a file
   named .jpg, quietly tripling the size.
 
-The two pull in opposite directions, which is why both names are tested.
+The two pull in opposite directions, which is why both names are tested. Those
+checks are pure string work and always run. The render itself needs ImageMagick 7
+and is skipped without it -- CI runners ship ImageMagick 6, whose binary is
+`convert`, and the name checks are the half that caught both bugs anyway.
 """
 
 import glob
@@ -49,6 +52,10 @@ def main():
     if drawn == "/cache/wallpapers/131-100x100.jpg":
         failures.append("image scratch name is the destination itself")
 
+    if shutil.which("magick") is None:
+        print("checked the scratch names; ImageMagick 7 absent, skipping the render")
+        return _report(failures)
+
     sandbox = tempfile.mkdtemp(prefix="pokemon-theme-render-")
     backgrounds = os.path.join(sandbox, "backgrounds")
     os.makedirs(backgrounds)
@@ -74,7 +81,10 @@ def main():
 
     print("checked the scratch names and one %dx%d render" % (320, 200))
     shutil.rmtree(sandbox, ignore_errors=True)
+    return _report(failures)
 
+
+def _report(failures):
     if failures:
         print("\n%d FAILURE(S):" % len(failures))
         for line in failures:
