@@ -2,7 +2,7 @@
 
 An [Omarchy](https://omarchy.org/) 4 theme that picks a different Pokémon every
 day. Its **own artwork** sets the palette, the whole desktop retints to match, and
-that artwork becomes the wallpaper. About once a decade, it shows up shiny.
+that artwork becomes the wallpaper. Every couple of weeks, it shows up shiny.
 
 ![Six days of the theme](docs/gallery.jpg)
 
@@ -142,10 +142,11 @@ whose palette you dislike, and unpinning is one command away.
 
 ## Shiny
 
-Every day rolls for shiny at **1 in 4096** — the gen 6+ full-odds number, which
-with one roll a day works out to about once a decade. A shiny day uses the shiny
-artwork, and since the palette comes from the artwork, the whole desktop changes
-with it: shiny Charizard themes the machine black-and-red instead of orange.
+Every day rolls for shiny at **1 in 14** — about once a fortnight. The unit here
+is a day, not an encounter, so the canonical 1-in-4096 would mean about once a
+decade: indistinguishable from never. A shiny day uses the shiny artwork, and
+since the palette comes from the artwork, the whole desktop changes with it:
+shiny Charizard themes the machine black-and-red instead of orange.
 
 The roll is deterministic per day and name, so the timer, the boot catch-up and
 the theme-set hook all agree about today. Pinning a Pokémon does not pin its
@@ -154,8 +155,8 @@ finish — a pin gets exactly the same odds a rolled day does.
 Odds are configurable in `~/.config/omarchy-pokemon-theme/config.toml`:
 
 ```toml
-shiny-odds = 4096        # 1 in N for the daily roll
-shiny-hunt-odds = 4096   # 1 in N for the hunt, so you can shorten one and not the other
+shiny-odds = 14        # 1 in N for the daily roll; 4096 for canonical full odds
+shiny-hunt-odds = 14   # 1 in N for the hunt, so you can change one and not the other
 ```
 
 To go looking on purpose, hunt: one roll against one random Pokémon, per press.
@@ -165,8 +166,8 @@ bin/pokemon-theme-gen --hunt      # or the "Shiny hunt" row in the menu
 ```
 
 A hunt that lands is remembered for the rest of the day, so the timer cannot
-regenerate it away, and it notifies with the odds it just beat. To see one
-without waiting a decade, `--shiny` forces today's; `--no-shiny` forces it back.
+regenerate it away, and it notifies with the odds it just beat. `--shiny` forces
+today's outright; `--no-shiny` forces it back.
 
 ## Lock screen
 
@@ -339,8 +340,8 @@ that matters now — the accent comes from an arbitrary sprite pixel, so the cla
 worth testing is that the clamps hold for *any* input colour, not just for
 eighteen type colours. Worst case across both is 4.93:1.
 
-`validate_shiny.py` checks the odds are the odds (400k draws against 1-in-64 and
-1-in-4096), that a day's roll is deterministic, and that the config keys reach
+`validate_shiny.py` checks the odds are the odds (400k draws at 1-in-14, 1-in-64
+and 1-in-4096), that a day's roll is deterministic, and that the config keys reach
 the roll. That last one caught a real bug: `set_key` quoted everything it wrote,
 so `shiny-odds = "4096"` came back a string and was silently ignored.
 

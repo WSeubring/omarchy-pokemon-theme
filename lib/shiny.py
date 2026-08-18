@@ -4,10 +4,11 @@ The daily roll is deterministic, like the Pokemon itself: the same day and the
 same name always agree about being shiny, so the timer, the boot catch-up and the
 theme-set hook cannot disagree about what today looks like.
 
-The odds are deliberately long. One roll a day means anything generous stops
-being an event -- at gen 6+ full odds a shiny day arrives about once a decade,
-which is the right feeling for something that changes the whole desktop. The
-hunt is the way to see one on purpose: it rerolls on demand at its own odds.
+One roll a day is the unit that matters here, not one encounter: the canonical
+1-in-4096 would put a shiny day about once a decade, which is indistinguishable
+from never. 1 in 14 -- roughly a fortnight -- is often enough to be a thing that
+happens and rare enough to still register when it does. Set it to taste; the hunt
+has its own key for going looking on purpose.
 """
 
 import hashlib
@@ -15,8 +16,8 @@ import random
 
 import config
 
-# 1 in N. The gen 6+ full-odds number, and the reason the hunt exists.
-DEFAULT_ODDS = 4096
+# 1 in N, per day. About once a fortnight.
+DEFAULT_ODDS = 14
 # A hunt is a deliberate act, so it gets its own key -- someone who wants to
 # actually find one can shorten it without touching what a normal day feels like.
 DEFAULT_HUNT_ODDS = DEFAULT_ODDS

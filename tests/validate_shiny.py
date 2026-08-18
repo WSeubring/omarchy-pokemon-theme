@@ -45,13 +45,16 @@ def rate(chances, draws=DRAWS):
 def main():
     failures = []
 
-    if shiny.DEFAULT_ODDS != 4096:
-        failures.append("default odds are %d, not the gen 6+ 4096"
+    # A day is the unit, so the default is a fortnight rather than the canonical
+    # per-encounter number. Guard the range, not the exact value: something that
+    # drifted to 4096 (a decade) or to 2 (twice a week) would be a mistake.
+    if not 7 <= shiny.DEFAULT_ODDS <= 60:
+        failures.append("default odds of 1 in %d are not roughly a fortnight"
                         % shiny.DEFAULT_ODDS)
 
     # The odds have to be the odds. A hash that clusters would show up here as a
     # rate well off 1/N.
-    for chances in (64, 4096):
+    for chances in (14, 64, 4096):
         observed = rate(chances)
         expected = 1 / chances
         if abs(observed - expected) > expected * TOLERANCE:
