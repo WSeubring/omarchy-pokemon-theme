@@ -1,0 +1,99 @@
+Speed up omarchy menu dmenu-mode search (pokemon picker: 905 rows).
+Parse options once per summon; per keystroke, match cached lowercase haystacks,
+and when the query merely extends the previous one, scan only the previous
+matches. Local patch against omarchy 4.0.0-1; pacman overwrites Menu.qml on
+update -- reapply with:
+  sudo cp /usr/share/omarchy/shell/plugins/menu/Menu.qml{,.orig}
+  sudo patch /usr/share/omarchy/shell/plugins/menu/Menu.qml < docs/omarchy-menu-dmenu-search.patch
+  omarchy-restart-shell
+Worth offering upstream.
+
+--- /usr/share/omarchy/shell/plugins/menu/Menu.qml	2026-08-14 17:24:18.000000000 +0200
++++ /tmp/claude-1000/-home-wseubring-Development-personal-omarchy-pokemon-theme/0978bdb4-a879-41b9-9b2b-bdd0af4e5a23/scratchpad/Menu.qml	2026-08-18 21:10:09.677528784 +0200
+@@ -56,6 +56,27 @@
+   readonly property bool dmenuActive: mode === "select" || mode === "input"
+   property string dmenuPrompt: ""
+   property var dmenuOptions: []
++  // Options parsed once per summon instead of on every keystroke: with large
++  // lists (hundreds of rows) re-splitting and lowercasing each option per
++  // filter edit is the bulk of the search latency.
++  property var dmenuParsed: []
++  property string dmenuLastQuery: ""
++  property var dmenuLastMatches: []
++  onDmenuOptionsChanged: {
++    var parsed = []
++    for (var i = 0; i < dmenuOptions.length; i++) {
++      var parts = String(dmenuOptions[i] || "").split("\t")
++      var icon = parts.length > 1 ? parts.shift() : ""
++      var label = parts.shift() || ""
++      var detail = parts.join("\t")
++      // "\n" separates label and detail so a query can never straddle them.
++      parsed.push({ icon: icon, label: label, detail: detail, index: i,
++                    haystack: (label + "\n" + detail).toLowerCase() })
++    }
++    dmenuParsed = parsed
++    dmenuLastQuery = ""
++    dmenuLastMatches = []
++  }
+   property string selectionFile: ""
+   property string doneFile: ""
+   property int dmenuWidth: 300
+@@ -516,33 +537,42 @@
+       return
+     }
+ 
++    // An option is "<label>", "<glyph>\t<label>", or
++    // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
++    // selection; the subtext renders under the label, filters alongside it,
++    // and returns with the selection as a stable key for same-named rows.
++    // Parsing happened once when the options arrived; here the cached rows are
++    // only matched. Extending the previous query can only narrow its result,
++    // so the scan runs over the previous matches instead of the full list.
+     var query = root.filterText.trim().toLowerCase()
+-    for (var i = 0; i < root.dmenuOptions.length; i++) {
+-      // An option is "<label>", "<glyph>\t<label>", or
+-      // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
+-      // selection; the subtext renders under the label, filters alongside it,
+-      // and returns with the selection as a stable key for same-named rows.
+-      var parts = String(root.dmenuOptions[i] || "").split("\t")
+-      var icon = parts.length > 1 ? parts.shift() : ""
+-      var label = parts.shift() || ""
+-      var detail = parts.join("\t")
+-      if (query && label.toLowerCase().indexOf(query) < 0
+-          && detail.toLowerCase().indexOf(query) < 0) continue
++    var source = root.dmenuParsed
++    if (query && root.dmenuLastQuery && query.indexOf(root.dmenuLastQuery) === 0)
++      source = root.dmenuLastMatches
++    var matches = []
++    for (var i = 0; i < source.length; i++) {
++      var opt = source[i]
++      if (query && opt.haystack.indexOf(query) < 0) continue
++      matches.push(opt)
++    }
++    root.dmenuLastQuery = query
++    root.dmenuLastMatches = matches
++    for (var m = 0; m < matches.length; m++) {
++      var row = matches[m]
+       displayModel.append({
+-        itemId: "dmenu." + i,
++        itemId: "dmenu." + row.index,
+         kind: "dmenu",
+-        icon: icon,
++        icon: row.icon,
+         iconFont: "",
+         appIcon: "",
+         appId: "",
+-        label: label,
++        label: row.label,
+         target: "",
+-        detail: detail,
++        detail: row.detail,
+         path: "",
+         childCount: 0,
+         action: "",
+         provider: "",
+-        score: i,
++        score: row.index,
+         section: ""
+       })
+     }
