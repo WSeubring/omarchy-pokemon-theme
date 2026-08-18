@@ -69,6 +69,23 @@ def main():
             failures.append("%s/dark_foreground contrast %.2f < %.2f"
                             % (name, dim, MIN_DIM))
 
+        # The border is a gradient spec, not a colour, so it is checked for
+        # shape rather than contrast: one stop for a single type, two plus an
+        # angle for a dual type. A malformed spec makes omarchy emit a broken
+        # hyprland.lua, which costs you window borders entirely.
+        border = colors["hyprland_active_border"]
+        stops = [p for p in border.split() if not p.endswith("deg")]
+        expected = len(kinds)
+        if len(stops) != expected:
+            failures.append("%s border has %d stop(s), expected %d"
+                            % (name, len(stops), expected))
+        for stop in stops:
+            if not (stop.startswith("rgba(") and stop.endswith(")")
+                    and len(stop) == len("rgba(rrggbbaa)")):
+                failures.append("%s border stop malformed: %s" % (name, stop))
+        if expected > 1 and not border.endswith("deg"):
+            failures.append("%s dual-type border has no angle" % name)
+
         for token, (_, _, anchor) in palette.ANSI.items():
             hue = hex_to_oklch(colors[token])[2]
             drift = abs(((hue - anchor + 180) % 360) - 180)

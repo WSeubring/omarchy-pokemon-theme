@@ -48,6 +48,14 @@ BRIGHT = ("red", "yellow", "green", "cyan", "blue", "magenta")
 ACCENT_L_MIN, ACCENT_L_MAX = 0.660, 0.865
 ACCENT_C_MIN, ACCENT_C_MAX = 0.090, 0.170
 
+# Hyprland's active-window border, as a two-stop gradient for a dual type -- the
+# same treatment omarchy-lock-pokemon gives its card border. Omarchy resolves
+# this key into both hyprland.lua and shell.toml's hyprland.active-border, so one
+# gradient reaches window borders, notifications, popups, menus and the lock card.
+# Alpha matches the stock themes that ship a gradient (hackerman, solitude).
+BORDER_ALPHA = "ee"
+BORDER_ANGLE = 45
+
 # How far the ANSI hues rotate toward the day's hue. Enough to feel cohesive,
 # far short of making red look orange.
 HUE_PULL = 0.15
@@ -56,18 +64,41 @@ HUE_PULL = 0.15
 SECONDARY_KEYS = ("lighter_background", "selection", "muted")
 
 
+def _readable(hex_color):
+    """Lift a type colour into the accent's readable band, keeping its hue.
+
+    Shared with the accent so a border stop and the accent agree: several type
+    colours (dark, ghost, steel) are too dim or too flat to read as a border
+    against the palette's own background at their native lightness.
+    """
+    L, C, H = hex_to_oklch(hex_color)
+    return oklch_to_hex(
+        min(max(L, ACCENT_L_MIN), ACCENT_L_MAX),
+        min(max(C, ACCENT_C_MIN), ACCENT_C_MAX),
+        H,
+    )
+
+
+def _border(type_colors, types):
+    """A one- or two-stop Hyprland gradient spec for the day's types."""
+    stops = ["rgba(%s%s)" % (_readable(type_colors[t]).lstrip("#"), BORDER_ALPHA)
+             for t in types]
+    if len(stops) < 2:
+        return stops[0]
+    return "%s %ddeg" % (" ".join(stops), BORDER_ANGLE)
+
+
 def build(type_colors, types):
     """types: 1-2 type names, in order. Returns {token: hex}."""
     primary = type_colors[types[0]]
-    l_primary, c_primary, h_primary = hex_to_oklch(primary)
+    h_primary = hex_to_oklch(primary)[2]
     h_secondary = h_primary
     if len(types) > 1:
         h_secondary = hex_to_oklch(type_colors[types[1]])[2]
 
     out = {}
-    accent_l = min(max(l_primary, ACCENT_L_MIN), ACCENT_L_MAX)
-    accent_c = min(max(c_primary, ACCENT_C_MIN), ACCENT_C_MAX)
-    out["accent"] = oklch_to_hex(accent_l, accent_c, h_primary)
+    out["accent"] = _readable(primary)
+    out["hyprland_active_border"] = _border(type_colors, types)
 
     for token, (L, C) in NEUTRALS_DARK.items():
         hue = h_secondary if token in SECONDARY_KEYS else h_primary
@@ -90,6 +121,7 @@ def build(type_colors, types):
 
 ORDER = (
     "accent", "selection", "muted",
+    "hyprland_active_border",
     None,
     "background", "dark_background", "darker_background", "lighter_background",
     None,

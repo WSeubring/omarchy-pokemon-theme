@@ -169,16 +169,34 @@ apparent brightness" instead of "keep the same number".
 Both types are used, in three places, and a dual type is meant to be noticeable
 without being busy:
 
+Just under half the 905 are dual-type (449), so this is the common case rather
+than an edge case.
+
 | | Primary type | Second type |
 | --- | --- | --- |
+| Borders | first gradient stop | second stop, at 45° |
 | Palette | accent, backgrounds, foregrounds | mid-greys (`lighter_background`, `selection`, `muted`) |
 | ANSI | anchors nearer the primary hue | anchors nearer its own hue |
 | Ambient motion | front layer, full intensity | layer behind it, half intensity, own tint |
-| Lock screen | handled by the lock plugin's own dual-type gradient | |
 
-So a Gengar day is a violet desktop with magenta-tinted chrome, and wisps
-drifting in front of creeping smog. A single-type day leaves the second slot
-empty and everything falls back to the primary hue.
+The borders are the most visible of these, and the same treatment
+omarchy-lock-pokemon gives its card. A dual type sets `hyprland_active_border`
+in `colors.toml` to a two-stop gradient, which omarchy resolves into *both*
+`hyprland.lua` and `shell.toml`'s `hyprland.active-border` — so one line reaches
+window borders, notifications, popups, menus and the lock card together:
+
+```toml
+hyprland_active_border = "rgba(9f82c6ee) rgba(c867c5ee) 45deg"
+```
+
+Both stops go through the same readable-band clamp as the accent, because
+several type colours (dark, ghost, steel) are too dim at their native lightness
+to read as a border against the palette's own background.
+
+So a Gengar day is a violet desktop, magenta-tinted chrome, borders running
+violet to magenta, and wisps drifting in front of creeping smog. A single-type
+day emits one stop, giving a solid border, and everything falls back to the
+primary hue.
 
 ## Tests
 
