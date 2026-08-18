@@ -1,0 +1,50 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validators:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # pokemon-colorscripts is what validate_sprites.py checks names against.
+      # It is optional -- the validator skips itself when the binary is absent --
+      # but the drift it catches (a renamed entry leaving the lock screen with no
+      # sprite) is exactly the kind that only shows up on the day it happens, so
+      # CI is the right place to actually run it.
+      - name: Install pokemon-colorscripts
+        run: |
+          git clone --depth 1 https://gitlab.com/phoneybadger/pokemon-colorscripts.git /tmp/pcs
+          sudo /tmp/pcs/install.sh
+
+      - name: Run the validators
+        run: tests/run
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No third-party linters: the point is to catch a syntax error or an
+      # unquoted expansion before it reaches a machine that themes itself
+      # unattended at midnight, not to enforce a style.
+      - name: Byte-compile the Python
+        run: python3 -m compileall -q bin lib tests
+
+      - name: Shellcheck the shell
+        run: |
+          shellcheck install.sh uninstall.sh hooks/theme-set tests/run \
+            bin/pokemon-theme-pick bin/pokemon-theme-menu-install
