@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Generate the Pokemon-of-the-day Omarchy theme.
+
+Writes colors.toml and a single wallpaper into the theme directory, then asks
+Omarchy to re-apply the theme so every downstream app retints.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from datetime import date
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+
+import palette  # noqa: E402
+import schedule  # noqa: E402
+import wallpaper  # noqa: E402
+from oklch import hex_to_oklch  # noqa: E402
+
+SLUG = "pokemon"
+ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
+               "/sprites/pokemon/other/official-artwork/%d.png")
+# Artwork lives outside the theme directory on purpose: `omarchy-theme-set`
+# copies the whole theme into a staging dir on every apply, and a growing cache
+# would be copied along with it.
+CACHE = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+    "omarchy-pokemon-theme", "artwork")
+# Records which date/Pokemon is currently written out, so the timer, the boot
+# hook and a manual theme switch can all fire without doing the work three
+# times. Kept outside the theme dir for the same reason as the cache.
+STATE = os.path.join(
+    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+    "omarchy-pokemon-theme", "current")
+# One file only: omarchy's background chooser cycles the sorted list, so a
+# single entry is the only way to guarantee today's wallpaper is the one picked.
+BACKGROUND = os.path.join(ROOT, "backgrounds", "today.jpg")
+
+# Yaru ships a fixed set of accent hues; pick whichever sits closest to the
+# day's hue so the icon theme moves with the palette instead of staying put.
+YARU_HUES = {
+    "Yaru-red": 25.0,
+    "Yaru-wartybrown": 50.0,
+    "Yaru-yellow": 85.0,
+    "Yaru-olive": 112.0,
+    "Yaru-sage": 145.0,
+    "Yaru-prussiangreen": 195.0,
+    "Yaru-blue": 258.0,
+    "Yaru-purple": 300.0,
+    "Yaru-magenta": 340.0,
+}
+
+
+def icon_theme(accent):
+    hue = hex_to_oklch(accent)[2]
+    return min(YARU_HUES,
+               key=lambda name: abs(((YARU_HUES[name] - hue + 180) % 360) - 180))
+
+
+def already_current(day):
+    """True if today's theme is written out and intact."""
+    try:
+        with open(STATE) as fh:
+            stamp = fh.read().split()[0]
+    except (OSError, IndexError):
+        return False
+    return stamp == day and os.path.exists(BACKGROUND)
+
+
+def record(day, name):
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w") as fh:
+        fh.write("%s %s\n" % (day, name))
+
+
+def load(name):
+    with open(os.path.join(ROOT, "data", name)) as fh:
+        return json.load(fh)
+
+
+def artwork_for(dex_id):
+    """Return a cached artwork path, or None if it cannot be had."""
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "%d.png" % dex_id)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path
+    try:
+        with urllib.request.urlopen(ARTWORK_URL % dex_id, timeout=20) as resp:
+            data = resp.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print("artwork unavailable (%s); rendering ground only" % exc,
+              file=sys.stderr)
+        return None
+    tmp = path + ".part"
+    with open(tmp, "wb") as fh:
+        fh.write(data)
+    os.replace(tmp, path)
+    return path
+
+
+def screen_size(fallback=(2560, 1600)):
+    try:
+        out = subprocess.run(["hyprctl", "monitors", "-j"], check=True,
+                             capture_output=True, text=True).stdout
+        mons = json.loads(out)
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return fallback
+    if not mons:
+        return fallback
+    # Render for the largest attached monitor; PreserveAspectCrop handles the
+    # rest, and upscaling a small render onto a big screen would show.
+    best = max(mons, key=lambda m: m.get("width", 0) * m.get("height", 0))
+    return int(best["width"]), int(best["height"])
+
+
+def apply_theme():
+    """Re-apply the theme so omarchy regenerates every dependent config.
+
+    OMARCHY_POKEMON_APPLYING lets the theme-set hook see that this run is our
+    own and bail out, instead of recursing.
+    """
+    env = dict(os.environ, OMARCHY_POKEMON_APPLYING="1")
+    try:
+        subprocess.run(["omarchy-theme-set", SLUG], check=True, env=env,
+                       capture_output=True, text=True, timeout=120)
+    except FileNotFoundError:
+        print("omarchy-theme-set not on PATH; files written but not applied",
+              file=sys.stderr)
+        return False
+    except subprocess.CalledProcessError as exc:
+        print("omarchy-theme-set failed: %s" % (exc.stderr or "").strip(),
+              file=sys.stderr)
+        return False
+    except subprocess.TimeoutExpired:
+        print("omarchy-theme-set timed out", file=sys.stderr)
+        return False
+    return True
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--date", default=date.today().isoformat(),
+                    help="YYYY-MM-DD to generate for (default: today)")
+    ap.add_argument("--pokemon", help="override the pick by name")
+    ap.add_argument("--no-apply", action="store_true",
+                    help="write the files but do not re-apply the theme")
+    ap.add_argument("--no-wallpaper", action="store_true",
+                    help="only regenerate colors.toml")
+    ap.add_argument("--size", help="wallpaper size as WxH")
+    ap.add_argument("--force", action="store_true",
+                    help="regenerate even if today's theme is already written")
+    args = ap.parse_args()
+
+    if not args.force and not args.pokemon and already_current(args.date):
+        print("%s already current; nothing to do" % args.date)
+        return
+
+    dex, types = load("dex.json"), load("types.json")
+    type_colors = load("type-colors.json")
+
+    if args.pokemon:
+        name = args.pokemon.lower()
+        if name not in types:
+            sys.exit("unknown pokemon: %s" % name)
+        dex_id, kinds = dex.index(name) + 1, types[name]
+    else:
+        dex_id, name, kinds = schedule.pick(args.date, dex, types)
+
+    colors = palette.build(type_colors, kinds)
+    header = "# Generated by omarchy-pokemon-theme -- do not edit by hand.\n" \
+             "# %s: #%d %s (%s)\n" % (args.date, dex_id, name, "/".join(kinds))
+    with open(os.path.join(ROOT, "colors.toml"), "w") as fh:
+        fh.write(palette.to_toml(colors, header))
+
+    with open(os.path.join(ROOT, "icons.theme"), "w") as fh:
+        fh.write(icon_theme(colors["accent"]) + "\n")
+
+    if not args.no_wallpaper:
+        if args.size:
+            w, h = (int(v) for v in args.size.lower().split("x"))
+        else:
+            w, h = screen_size()
+        os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
+        wallpaper.render(artwork_for(dex_id), colors, BACKGROUND, w, h)
+
+    if not args.pokemon:
+        record(args.date, name)
+
+    print("%s  #%d %s (%s)  accent %s"
+          % (args.date, dex_id, name, "/".join(kinds), colors["accent"]))
+
+    if not args.no_apply:
+        apply_theme()
+
+
+if __name__ == "__main__":
+    main()
