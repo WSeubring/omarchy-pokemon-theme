@@ -59,10 +59,9 @@ def section(colors, pokemon_name, header="", is_shiny=False):
         ("selection-alpha", SELECTION_ALPHA),
     ]
 
-    # omarchy-lock-pokemon has its own shiny roll and its own sparkle animation,
-    # so a shiny day just tells it to stop rolling and shine. Only written when
-    # shiny: on an ordinary day the plugin keeps its own odds, and an unlock can
-    # still surprise you.
-    if is_shiny:
-        rows.append(("pokemon-shiny", quote("always")))
+    # omarchy-lock-pokemon has its own shiny roll and its own sparkle animation.
+    # Both directions are pinned so the lock screen always agrees with the
+    # wallpaper: "always" makes a shiny day shine, "never" stops the plugin's
+    # own roll from producing a shiny lock screen over a plain background.
+    rows.append(("pokemon-shiny", quote("always" if is_shiny else "never")))
     return tomlout.section("lock", rows, header)

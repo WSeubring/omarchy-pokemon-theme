@@ -125,8 +125,8 @@ def main():
     lock_plain = lockscreen.section(palette_colors, "charizard")
     if _value(lock_lit, "pokemon-shiny") != '"always"':
         failures.append("a shiny day did not tell the lock screen")
-    if 'pokemon-shiny' in lock_plain:
-        failures.append("an ordinary day pinned the lock screen's own roll")
+    if _value(lock_plain, "pokemon-shiny") != '"never"':
+        failures.append("an ordinary day left the lock screen's own roll live")
 
     shutil.rmtree(SANDBOX, ignore_errors=True)
 
