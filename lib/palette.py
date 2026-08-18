@@ -79,26 +79,40 @@ def _readable(hex_color):
     )
 
 
-def _border(type_colors, types):
-    """A one- or two-stop Hyprland gradient spec for the day's types."""
-    stops = ["rgba(%s%s)" % (_readable(type_colors[t]).lstrip("#"), BORDER_ALPHA)
-             for t in types]
+def _border(accent, type_colors, types):
+    """A one- or two-stop Hyprland gradient spec: the accent, then the second type.
+
+    The first stop is whatever the accent came from -- the creature's own colour
+    when the artwork was readable, its primary type otherwise -- so the border
+    always agrees with the rest of the palette. The second stop stays type-based:
+    it is there to say "this one is also a poison type", which is a fact about the
+    category, not about the pixels.
+    """
+    stops = [accent]
+    if len(types) > 1:
+        stops.append(_readable(type_colors[types[1]]))
+    spec = " ".join("rgba(%s%s)" % (s.lstrip("#"), BORDER_ALPHA) for s in stops)
     if len(stops) < 2:
-        return stops[0]
-    return "%s %ddeg" % (" ".join(stops), BORDER_ANGLE)
+        return spec
+    return "%s %ddeg" % (spec, BORDER_ANGLE)
 
 
-def build(type_colors, types):
-    """types: 1-2 type names, in order. Returns {token: hex}."""
-    primary = type_colors[types[0]]
-    h_primary = hex_to_oklch(primary)[2]
+def build(type_colors, types, accent_source=None):
+    """types: 1-2 type names, in order. Returns {token: hex}.
+
+    `accent_source` is a hex colour to take the accent from -- the creature's
+    dominant artwork colour -- instead of its primary type. Only hue and a
+    clamped lightness survive either way, so the two paths differ in identity,
+    not in readability.
+    """
+    out = {}
+    out["accent"] = _readable(accent_source or type_colors[types[0]])
+    h_primary = hex_to_oklch(out["accent"])[2]
     h_secondary = h_primary
     if len(types) > 1:
         h_secondary = hex_to_oklch(type_colors[types[1]])[2]
 
-    out = {}
-    out["accent"] = _readable(primary)
-    out["hyprland_active_border"] = _border(type_colors, types)
+    out["hyprland_active_border"] = _border(out["accent"], type_colors, types)
 
     for token, (L, C) in NEUTRALS_DARK.items():
         hue = h_secondary if token in SECONDARY_KEYS else h_primary
