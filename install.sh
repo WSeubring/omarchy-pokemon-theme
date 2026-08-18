@@ -12,22 +12,24 @@ UNIT_DIR="$HOME/.config/systemd/user"
 PLUGIN_ID="${USER:-$(id -un)}.background"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 
-WITH_ANIMATION=0
+WITH_ANIMATION=1
 WITH_MENU=1
 for arg in "$@"; do
   case "$arg" in
   --with-animation) WITH_ANIMATION=1 ;;
+  --no-animation) WITH_ANIMATION=0 ;;
   --no-menu) WITH_MENU=0 ;;
   -h | --help)
     cat <<USAGE
-Usage: install.sh [--with-animation] [--no-menu]
+Usage: install.sh [--no-animation] [--no-menu]
 
-Links the theme, schedules the daily roll, and applies it.
+Links the theme, schedules the daily roll, applies it, and installs the
+ambient background plugin, which adds subtle per-type motion behind the
+wallpaper. The plugin replaces omarchy's static background renderer;
+reversible with 'omarchy plugin enable omarchy.background'.
 
-  --with-animation   also install the ambient background plugin, which adds
-                     subtle per-type motion behind the wallpaper. Replaces
-                     omarchy's static background renderer; reversible with
-                     'omarchy plugin enable omarchy.background'.
+  --no-animation     skip the ambient background plugin and keep the stock
+                     static background renderer.
   --no-menu          skip the omarchy menu rows. They are only visible while
                      this theme is active, so installing them is harmless.
 USAGE
@@ -110,7 +112,8 @@ Done. Today's Pokemon is live.
   omarchy theme set pokemon              switch to it (regenerates for today)
   bin/pokemon-theme-gen --force          roll it again now
   bin/pokemon-theme-gen --pokemon mew    preview a specific one
-  ./install.sh --with-animation          add ambient motion behind the wallpaper
+  omarchy plugin enable omarchy.background   hand the desktop back to the
+                                             stock renderer (motion off)
   ./uninstall.sh                         remove everything this installed
 
 Or from the omarchy menu, under Pokemon (shown while this theme is active):

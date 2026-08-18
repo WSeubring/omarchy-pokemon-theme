@@ -77,26 +77,6 @@ YARU_HUES = {
 }
 
 
-def ambient_plugin_installed():
-    """True if an ambient background plugin is present.
-
-    The plugin's presence *is* the on/off switch, so there is no separate config
-    file to keep in sync: installing it enables the motion, removing it disables
-    it, and a user who wants the plugin but no motion sets
-    `effects = "hide"` under [background] in ~/.config/omarchy/shell.toml.
-    """
-    plugins = os.path.expanduser("~/.config/omarchy/plugins")
-    try:
-        entries = os.listdir(plugins)
-    except OSError:
-        return False
-    return any(
-        name.endswith(".background")
-        and os.path.isfile(os.path.join(plugins, name, "manifest.json"))
-        for name in entries
-    )
-
-
 def icon_theme(accent):
     hue = hex_to_oklch(accent)[2]
     return min(YARU_HUES,
@@ -358,11 +338,13 @@ def main():
     # wins per-key over anything a theme ships.
     # The ambient section is written whether or not the plugin is installed: it
     # is inert without it, so installing the plugin later needs no regeneration.
+    # Motion is on by default; --no-animation writes it switched off, and a user
+    # can override per key with `effects = "hide"` under [background] in
+    # ~/.config/omarchy/shell.toml.
     type_effects = load("type-effects.json")
-    animate = ambient_plugin_installed() and not args.no_animation
     atomic.text(os.path.join(ROOT, "shell.background.toml"),
                 ambient.section(type_effects, type_colors, kinds,
-                                enabled=animate, header=header,
+                                enabled=not args.no_animation, header=header,
                                 is_shiny=choice.shiny))
 
     lock_path = os.path.join(ROOT, "shell.lock.toml")
