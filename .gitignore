@@ -5,3 +5,7 @@ backgrounds/today.jpg
 cache/
 __pycache__/
 *.pyc
+
+# Generated alongside colors.toml; absence just means the lock screen
+# rolls its own Pokemon.
+shell.lock.toml
