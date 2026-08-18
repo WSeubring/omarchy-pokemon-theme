@@ -39,6 +39,7 @@ ICON_PICK=$(printf '\uf002')   # magnifying glass
 ICON_PIN=$(printf '\uf08d')    # thumb tack
 ICON_RANDOM=$(printf '\uf074') # shuffle
 ICON_DAILY=$(printf '\uf073')  # calendar
+ICON_SHINY=$(printf '\uf005')  # star
 
 PICK="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/pokemon-theme-pick"
 GEN="$(dirname "$PICK")/pokemon-theme-gen"
@@ -76,6 +77,7 @@ $BEGIN
   "pokemon": {"icon":"$ICON_DEX","label":"Pokémon","description":"theme of the day","aliases":["pokemon","pokedex","pkmn"],"when":"$ACTIVE"},
   "pokemon.pick": {"icon":"$ICON_PICK","label":"Pick for today","description":"search all 905; reverts at midnight","action":"$PICK --today","when":"$ACTIVE"},
   "pokemon.random": {"icon":"$ICON_RANDOM","label":"Random for today","description":"surprise me; reverts at midnight","action":"$PICK --random","when":"$ACTIVE"},
+  "pokemon.hunt": {"icon":"$ICON_SHINY","label":"Shiny hunt","description":"one roll at the shiny odds; try again","action":"$PICK --hunt","when":"$ACTIVE"},
   "pokemon.pin": {"icon":"$ICON_PIN","label":"Pin permanently","description":"keep one until you unpin it","action":"$PICK --pin","when":"$ACTIVE"},
   "pokemon.daily": {"icon":"$ICON_DAILY","label":"Back to daily","description":"drop any pin and use the day's own Pokémon","action":"$GEN --unpin","when":"$ACTIVE","checked":"$ON_DAILY"}
 $END

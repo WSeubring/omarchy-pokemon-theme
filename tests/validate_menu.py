@@ -31,8 +31,8 @@ EXISTING = """{
 }
 """
 
-REQUIRED = ("pokemon", "pokemon.pick", "pokemon.random", "pokemon.pin",
-            "pokemon.daily")
+REQUIRED = ("pokemon", "pokemon.pick", "pokemon.random", "pokemon.hunt",
+            "pokemon.pin", "pokemon.daily")
 
 
 def strip_jsonc(raw):
