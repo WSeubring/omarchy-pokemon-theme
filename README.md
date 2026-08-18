@@ -143,12 +143,24 @@ whose palette you dislike, and unpinning is one command away.
 
 Every day rolls for shiny at **1 in 14** — about once a fortnight. The unit here
 is a day, not an encounter, so the canonical 1-in-4096 would mean about once a
-decade: indistinguishable from never. A shiny day uses the shiny artwork, and
-since the palette comes from the artwork, the whole desktop changes with it:
-shiny Charizard themes the machine black-and-red instead of orange.
+decade: indistinguishable from never.
 
-The roll is deterministic per day and name, so the timer, the boot catch-up and
-the theme-set hook all agree about today. Pinning a Pokémon does not pin its
+A shiny day should be obvious from across the room, so it lands on all three
+surfaces at once:
+
+| | On a shiny day |
+| --- | --- |
+| Palette | the shiny artwork's colours — shiny Charizard themes the machine black-and-red, not orange |
+| Wallpaper | eight four-pointed sparkles scattered in front of the creature, and a brighter halo |
+| Ambient motion | `twinkles` in gold takes the second effect slot, and the motion turns up |
+| Lock screen | `pokemon-shiny = always`, so omarchy-lock-pokemon fires its own sparkle animation |
+
+The sparkles are seeded by the Pokémon, so regenerating a wallpaper gives back the
+same wallpaper. A dual type gives up its second ambient effect for the day —
+being shiny is the more interesting fact about it.
+
+The roll itself is deterministic per day and name, so the timer, the boot
+catch-up and the theme-set hook all agree about today. Pinning a Pokémon does not pin its
 finish — a pin gets exactly the same odds a rolled day does.
 
 Odds are configurable in `~/.config/omarchy-pokemon-theme/config.toml`:

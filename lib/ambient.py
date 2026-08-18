@@ -25,22 +25,35 @@ PAUSE_WHEN_COVERED = "true"
 PAUSE_ON_BATTERY = "low"
 PAUSE_ON_BATTERY_BELOW = 30
 
+# A shiny day borrows the effect the fairy type uses, tinted gold, and turns the
+# motion up. It takes the *secondary* slot, so a dual type gives up its second
+# effect for the day -- being shiny is the more interesting fact about it.
+SHINY_EFFECT = "twinkles"
+SHINY_TINT = "#ffd452"
+SHINY_STRENGTH = 0.9
+SHINY_INTENSITY = 0.75
+
 
 def section(type_effects, type_colors, types, enabled=True,
-            intensity=DEFAULT_INTENSITY, header=""):
+            intensity=DEFAULT_INTENSITY, header="", is_shiny=False):
     """Build the `[background]` block for a Pokemon's types."""
     primary = type_effects[types[0]]["effect"]
     secondary = ""
     secondary_tint = ""
+    strength = SECONDARY_STRENGTH
     if len(types) > 1:
         secondary = type_effects[types[1]]["effect"]
         secondary_tint = type_colors[types[1]]
+    if is_shiny:
+        secondary, secondary_tint = SHINY_EFFECT, SHINY_TINT
+        strength = SHINY_STRENGTH
+        intensity = max(intensity, SHINY_INTENSITY)
 
     rows = (
         ("effects", quote("show" if enabled else "hide")),
         ("effect-primary", quote(primary)),
         ("effect-secondary", quote(secondary)),
-        ("effect-secondary-strength", SECONDARY_STRENGTH),
+        ("effect-secondary-strength", strength),
         ("effect-intensity", intensity),
         ("effect-variant", DEFAULT_VARIANT),
         # Shapes take the type colour rather than the palette accent: the accent

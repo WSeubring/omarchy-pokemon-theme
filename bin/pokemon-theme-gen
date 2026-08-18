@@ -137,7 +137,8 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height):
     else:
         os.makedirs(WALLPAPERS, exist_ok=True)
         wallpaper.render(artwork_for(dex_id, is_shiny), colors, cached,
-                         width, height)
+                         width, height,
+                         sparkle="%d-shiny" % dex_id if is_shiny else None)
 
     _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
 
@@ -339,14 +340,16 @@ def main():
     animate = ambient_plugin_installed() and not args.no_animation
     atomic.text(os.path.join(ROOT, "shell.background.toml"),
                 ambient.section(type_effects, type_colors, kinds,
-                                enabled=animate, header=header))
+                                enabled=animate, header=header,
+                                is_shiny=choice.shiny))
 
     lock_path = os.path.join(ROOT, "shell.lock.toml")
     if args.no_lock_sync:
         if os.path.exists(lock_path):
             os.remove(lock_path)
     else:
-        atomic.text(lock_path, lockscreen.section(colors, name, header))
+        atomic.text(lock_path,
+                    lockscreen.section(colors, name, header, choice.shiny))
 
     state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny)
 

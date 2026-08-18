@@ -74,6 +74,24 @@ def main():
         if kind != "JPEG":
             failures.append("render wrote %s into a .jpg" % (kind or "nothing"))
 
+    # A shiny render must differ from a normal one, and must be reproducible:
+    # regenerating a wallpaper should give back the same wallpaper, sparkles in
+    # the same places.
+    plain = os.path.join(sandbox, "plain.jpg")
+    shiny_a = os.path.join(sandbox, "shiny-a.jpg")
+    shiny_b = os.path.join(sandbox, "shiny-b.jpg")
+    wallpaper.render(None, colors, plain, 320, 200)
+    wallpaper.render(None, colors, shiny_a, 320, 200, sparkle="6-shiny")
+    wallpaper.render(None, colors, shiny_b, 320, 200, sparkle="6-shiny")
+    if open(shiny_a, "rb").read() == open(plain, "rb").read():
+        failures.append("a shiny render is identical to a normal one")
+    if open(shiny_a, "rb").read() != open(shiny_b, "rb").read():
+        failures.append("the same shiny rendered differently twice")
+    other = os.path.join(sandbox, "shiny-other.jpg")
+    wallpaper.render(None, colors, other, 320, 200, sparkle="94-shiny")
+    if open(other, "rb").read() == open(shiny_a, "rb").read():
+        failures.append("two different Pokemon sparkle identically")
+
     leftovers = sorted(name for name in os.listdir(backgrounds)
                        if name != "today.jpg")
     if leftovers:

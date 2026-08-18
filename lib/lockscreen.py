@@ -39,10 +39,10 @@ def mix(start, end, amount):
     return "#%02x%02x%02x" % tuple(out)
 
 
-def section(colors, pokemon_name, header=""):
+def section(colors, pokemon_name, header="", is_shiny=False):
     placeholder = mix(colors["foreground"], colors["background"],
                       PLACEHOLDER_MIX)
-    rows = (
+    rows = [
         # Pinning the name is the whole point of this file; everything below it
         # only exists because the override replaces the section wholesale.
         ("pokemon-name", quote(pokemon_name)),
@@ -57,5 +57,12 @@ def section(colors, pokemon_name, header=""):
         ("border-alpha", BORDER_ALPHA),
         ("selection", quote(colors["accent"])),
         ("selection-alpha", SELECTION_ALPHA),
-    )
+    ]
+
+    # omarchy-lock-pokemon has its own shiny roll and its own sparkle animation,
+    # so a shiny day just tells it to stop rolling and shine. Only written when
+    # shiny: on an ordinary day the plugin keeps its own odds, and an unlock can
+    # still surprise you.
+    if is_shiny:
+        rows.append(("pokemon-shiny", quote("always")))
     return tomlout.section("lock", rows, header)

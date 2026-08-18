@@ -25,7 +25,9 @@ os.environ["XDG_STATE_HOME"] = os.path.join(SANDBOX, "state")
 
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
+import ambient  # noqa: E402
 import config  # noqa: E402
+import lockscreen  # noqa: E402
 import shiny  # noqa: E402
 
 # Enough draws that a rate off by a factor of two cannot hide, few enough that
@@ -40,6 +42,15 @@ def rate(chances, draws=DRAWS):
                if shiny.rolled("2026-%02d-%02d" % (i % 12 + 1, i % 28 + 1),
                                "mon%d" % i, chances))
     return hits / draws
+
+
+def _value(section, key):
+    """The value of `key` in a rendered TOML section. Keys are padded to align."""
+    for line in section.splitlines():
+        name, _, value = line.partition("=")
+        if name.strip() == key:
+            return value.strip()
+    return None
 
 
 def main():
@@ -93,6 +104,29 @@ def main():
     config.clear_key(shiny.ODDS_KEY)
     if shiny.odds() != shiny.DEFAULT_ODDS:
         failures.append("clearing the key did not restore the default")
+
+    # A shiny day has to reach the other two surfaces, not just the wallpaper:
+    # the ambient plugin's twinkles, and the lock screen's own sparkle.
+    effects = {"fire": {"effect": "embers"}, "flying": {"effect": "gusts"}}
+    colors = {"fire": "#EE8130", "flying": "#A98FF3"}
+    plain = ambient.section(effects, colors, ["fire", "flying"])
+    lit = ambient.section(effects, colors, ["fire", "flying"], is_shiny=True)
+    if ambient.SHINY_EFFECT not in lit:
+        failures.append("a shiny day did not switch the ambient effect")
+    if ambient.SHINY_EFFECT in plain:
+        failures.append("an ordinary day got the shiny ambient effect")
+    if _value(lit, "effect-intensity") != str(ambient.SHINY_INTENSITY):
+        failures.append("a shiny day did not turn the motion up: %s"
+                        % _value(lit, "effect-intensity"))
+
+    palette_colors = {"foreground": "#eeeeee", "background": "#191919",
+                      "red": "#e06c75", "accent": "#d47075"}
+    lock_lit = lockscreen.section(palette_colors, "charizard", is_shiny=True)
+    lock_plain = lockscreen.section(palette_colors, "charizard")
+    if _value(lock_lit, "pokemon-shiny") != '"always"':
+        failures.append("a shiny day did not tell the lock screen")
+    if 'pokemon-shiny' in lock_plain:
+        failures.append("an ordinary day pinned the lock screen's own roll")
 
     shutil.rmtree(SANDBOX, ignore_errors=True)
 
