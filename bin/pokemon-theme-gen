@@ -17,6 +17,7 @@ from datetime import date
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
+import ambient  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
 import schedule  # noqa: E402
@@ -55,6 +56,26 @@ YARU_HUES = {
     "Yaru-purple": 300.0,
     "Yaru-magenta": 340.0,
 }
+
+
+def ambient_plugin_installed():
+    """True if an ambient background plugin is present.
+
+    The plugin's presence *is* the on/off switch, so there is no separate config
+    file to keep in sync: installing it enables the motion, removing it disables
+    it, and a user who wants the plugin but no motion sets
+    `effects = "hide"` under [background] in ~/.config/omarchy/shell.toml.
+    """
+    plugins = os.path.expanduser("~/.config/omarchy/plugins")
+    try:
+        entries = os.listdir(plugins)
+    except OSError:
+        return False
+    return any(
+        name.endswith(".background")
+        and os.path.isfile(os.path.join(plugins, name, "manifest.json"))
+        for name in entries
+    )
 
 
 def icon_theme(accent):
@@ -153,6 +174,8 @@ def main():
     ap.add_argument("--no-wallpaper", action="store_true",
                     help="only regenerate colors.toml")
     ap.add_argument("--size", help="wallpaper size as WxH")
+    ap.add_argument("--no-animation", action="store_true",
+                    help="write the background section with motion switched off")
     ap.add_argument("--no-lock-sync", action="store_true",
                     help="leave the lock screen to roll its own Pokemon")
     ap.add_argument("--force", action="store_true",
@@ -187,6 +210,14 @@ def main():
     # already on the desktop. A user who prefers a random lock sets
     # `pokemon-name = ""` under [lock] in ~/.config/omarchy/shell.toml, which
     # wins per-key over anything a theme ships.
+    # The ambient section is written whether or not the plugin is installed: it
+    # is inert without it, so installing the plugin later needs no regeneration.
+    type_effects = load("type-effects.json")
+    animate = ambient_plugin_installed() and not args.no_animation
+    with open(os.path.join(ROOT, "shell.background.toml"), "w") as fh:
+        fh.write(ambient.section(type_effects, type_colors, colors, kinds,
+                                 enabled=animate, header=header))
+
     lock_path = os.path.join(ROOT, "shell.lock.toml")
     if args.no_lock_sync:
         if os.path.exists(lock_path):

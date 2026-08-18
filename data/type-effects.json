@@ -1,0 +1,59 @@
+{
+  "normal": {
+    "effect": "motes"
+  },
+  "fire": {
+    "effect": "embers"
+  },
+  "water": {
+    "effect": "bubbles"
+  },
+  "electric": {
+    "effect": "strikes",
+    "flicker": true
+  },
+  "grass": {
+    "effect": "leaves"
+  },
+  "ice": {
+    "effect": "flakes"
+  },
+  "fighting": {
+    "effect": "impact"
+  },
+  "poison": {
+    "effect": "smog"
+  },
+  "ground": {
+    "effect": "grit",
+    "tremor": true
+  },
+  "flying": {
+    "effect": "gusts",
+    "bob": true
+  },
+  "psychic": {
+    "effect": "ripples"
+  },
+  "bug": {
+    "effect": "flit"
+  },
+  "rock": {
+    "effect": "rubble"
+  },
+  "ghost": {
+    "effect": "wisps"
+  },
+  "dragon": {
+    "effect": "vortex"
+  },
+  "dark": {
+    "effect": "gloom"
+  },
+  "steel": {
+    "effect": "plates"
+  },
+  "fairy": {
+    "effect": "twinkles"
+  }
+}
