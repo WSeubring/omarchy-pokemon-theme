@@ -21,10 +21,16 @@ jobs:
       # but the drift it catches (a renamed entry leaving the lock screen with no
       # sprite) is exactly the kind that only shows up on the day it happens, so
       # CI is the right place to actually run it.
+      # Its installer copies with relative paths, so it only works from its own
+      # checkout -- and it exits 0 even when those copies fail. Assert the binary
+      # is really there afterwards, or the sprite validator skips itself and the
+      # job goes green having checked nothing.
       - name: Install pokemon-colorscripts
         run: |
           git clone --depth 1 https://gitlab.com/phoneybadger/pokemon-colorscripts.git /tmp/pcs
-          sudo /tmp/pcs/install.sh
+          cd /tmp/pcs && sudo ./install.sh
+          command -v pokemon-colorscripts
+          pokemon-colorscripts -n pikachu >/dev/null
 
       - name: Run the validators
         run: tests/run
