@@ -48,7 +48,6 @@ take effect with no reinstall.
 ```bash
 bin/pokemon-theme-gen                      # generate today (no-op if current)
 bin/pokemon-theme-gen --force              # roll it again now
-bin/pokemon-theme-gen --pokemon mew        # preview a specific one
 bin/pokemon-theme-gen --date 2026-12-25    # what will Christmas look like
 bin/pokemon-theme-gen --no-apply           # write the files, don't retint
 ```
@@ -59,6 +58,49 @@ the theme by hand (`omarchy theme set pokemon`, or the theme switcher) also
 regenerates, so you never land on a stale day.
 
 To stop it: `./uninstall.sh`.
+
+## Picking a specific Pokémon
+
+```bash
+bin/pokemon-theme-gen --pokemon gengar   # just for today
+bin/pokemon-theme-gen --pin lapras       # permanently
+bin/pokemon-theme-gen --unpin            # back to a new one each day
+```
+
+`--pokemon` holds for the rest of the day and then expires, so tomorrow rolls
+normally. `--pin` writes `~/.config/omarchy-pokemon-theme/config.toml` and holds
+until you unpin:
+
+```toml
+pokemon = "lapras"
+```
+
+That file is yours to edit by hand; an edit takes effect on the next run without
+`--force`. It lives outside the theme directory deliberately — `omarchy theme
+install` deletes and re-clones the theme, which would take a config inside it.
+
+Four things decide the day, most specific first, and the generator prints which
+one it used so the answer is never a mystery:
+
+```
+$ bin/pokemon-theme-gen
+2026-08-18  #131 lapras (water/ice)  accent #6390f0  [pinned in config]
+```
+
+| Source | Lifetime |
+| --- | --- |
+| `--pokemon NAME` | today, then expires |
+| A pin set earlier today | today, then expires |
+| `pokemon` in the config | until unpinned |
+| The date's own roll | that day only |
+
+The today-only pin is a file holding `<date> <name>`, consulted only while the
+date still matches. Nothing expires it and nothing cleans it up — a stale one
+simply stops applying, which is what you want on a laptop that was asleep at
+midnight.
+
+Pinning matters for more than novelty: the daily roll can hand you a Pokémon
+whose palette you dislike, and unpinning is one command away.
 
 ## Lock screen
 
@@ -208,6 +250,7 @@ each property is checked across the whole set rather than spot-checked:
 python3 tests/validate_contrast.py   # all 905 palettes vs WCAG, and hue drift
 python3 tests/validate_schedule.py   # stability, spread, no near repeats
 python3 tests/validate_sprites.py    # every name resolves to a sprite
+python3 tests/validate_pins.py       # pin precedence and expiry
 ```
 
 `validate_contrast.py` builds every palette and asserts each text token clears
@@ -221,6 +264,8 @@ python3 tests/validate_sprites.py    # every name resolves to a sprite
 | `lib/oklch.py` | sRGB ↔ OKLCh, with gamut mapping by chroma reduction |
 | `lib/palette.py` | The ladder, the ANSI anchors, and `colors.toml` output |
 | `lib/schedule.py` | Date → Pokémon, deterministic and stateless |
+| `lib/pins.py` | Precedence between the roll and the two kinds of pin |
+| `lib/config.py` | The user config file, read and edited in place |
 | `lib/lockscreen.py` | The `shell.lock.toml` that pins the lock screen |
 | `lib/ambient.py` | The `shell.background.toml` that drives the motion |
 | `lib/wallpaper.py` | ImageMagick composition |
