@@ -8,6 +8,7 @@ Omarchy to re-apply the theme so every downstream app retints.
 import argparse
 import json
 import os
+import random
 import subprocess
 import sys
 import urllib.error
@@ -87,6 +88,15 @@ def icon_theme(accent):
                key=lambda name: abs(((YARU_HUES[name] - hue + 180) % 360) - 180))
 
 
+def current_name():
+    """The Pokemon currently written out, whatever day it was written for."""
+    try:
+        with open(STATE) as fh:
+            return fh.read().split()[1]
+    except (OSError, IndexError):
+        return None
+
+
 def already_current(day, name):
     """True if this exact day-and-Pokemon is already written out and intact."""
     try:
@@ -98,10 +108,10 @@ def already_current(day, name):
     return stamp == day and current == name and os.path.exists(BACKGROUND)
 
 
-def record(day, name):
+def record(day, name, source):
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
     with open(STATE, "w") as fh:
-        fh.write("%s %s\n" % (day, name))
+        fh.write("%s %s %s\n" % (day, name, source))
 
 
 def load(name):
@@ -174,6 +184,8 @@ def main():
                     help="YYYY-MM-DD to generate for (default: today)")
     ap.add_argument("--pokemon", metavar="NAME",
                     help="use this Pokemon for today; reverts at midnight")
+    ap.add_argument("--random", action="store_true",
+                    help="use a random Pokemon for today; reverts at midnight")
     ap.add_argument("--pin", metavar="NAME",
                     help="pin this Pokemon permanently, in the user config")
     ap.add_argument("--unpin", action="store_true",
@@ -196,6 +208,8 @@ def main():
 
     if args.pin and args.unpin:
         sys.exit("--pin and --unpin are mutually exclusive")
+    if args.random and args.pokemon:
+        sys.exit("--random and --pokemon are mutually exclusive")
 
     if args.pin:
         pinned = args.pin.lower()
@@ -214,13 +228,20 @@ def main():
         print("unpinned" if removed else "nothing was pinned")
         args.force = True
 
+    requested = args.pokemon
+    if args.random:
+        # Excluding what is already showing matters more here than for the daily
+        # roll: someone choosing "random" is asking to see something change, and
+        # a 1-in-905 no-op reads as a broken button.
+        requested = random.choice([n for n in dex if n != current_name()])
+
     try:
         dex_id, name, kinds, source = pins.resolve(args.date, dex, types,
-                                                  args.pokemon)
+                                                  requested)
     except ValueError as exc:
         sys.exit(str(exc))
 
-    if args.pokemon:
+    if requested:
         # Remembered for the rest of the day, so the timer, the boot catch-up and
         # the theme-set hook do not quietly roll an explicit choice back.
         pins.write_today(args.date, name)
@@ -269,7 +290,7 @@ def main():
         os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
         wallpaper.render(artwork_for(dex_id), colors, BACKGROUND, w, h)
 
-    record(args.date, name)
+    record(args.date, name, pins.SLUGS.get(source, "roll"))
 
     print("%s  #%d %s (%s)  accent %s  [%s]"
           % (args.date, dex_id, name, "/".join(kinds), colors["accent"], source))

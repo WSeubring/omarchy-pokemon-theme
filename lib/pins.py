@@ -29,6 +29,11 @@ REQUESTED = "requested"
 TODAY = "pinned for today"
 CONFIG = "pinned in config"
 
+# Written into the state file as a third field so other things -- the menu's
+# `checked` conditions in particular -- can ask "is this the plain daily roll?"
+# without re-deriving the answer from three separate files.
+SLUGS = {ROLL: "roll", REQUESTED: "requested", TODAY: "today", CONFIG: "config"}
+
 
 def read_today(day):
     """The name pinned for `day`, or None."""
