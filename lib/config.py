@@ -22,12 +22,10 @@ TEMPLATE = """\
 # Set it with: bin/pokemon-theme-gen --pin <name>
 # pokemon = "pikachu"
 
-# Shiny odds, as 1 in N, rolled once a day. The default is 14 -- about once a
-# fortnight. Set it to 4096 for canonical full odds, which works out to roughly
-# once a decade. The hunt (--hunt, or "Shiny hunt" in the menu) has its own key,
-# so making hunting easier does not make an ordinary day less rare.
+# Shiny odds, as 1 in N, rolled once a day and once per reroll. The default is
+# 14 -- about once a fortnight. Set it to 4096 for canonical full odds, which
+# works out to roughly once a decade.
 # shiny-odds = 14
-# shiny-hunt-odds = 14
 """
 
 

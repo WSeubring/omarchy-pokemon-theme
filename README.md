@@ -100,7 +100,6 @@ Or from the command line:
 ```bash
 bin/pokemon-theme-gen --pokemon gengar   # just for today
 bin/pokemon-theme-gen --random           # a random one, just for today
-bin/pokemon-theme-gen --hunt             # a random one, rolled for shiny
 bin/pokemon-theme-gen --pin lapras       # permanently
 bin/pokemon-theme-gen --unpin            # back to the daily roll
 ```
@@ -155,19 +154,16 @@ finish — a pin gets exactly the same odds a rolled day does.
 Odds are configurable in `~/.config/omarchy-pokemon-theme/config.toml`:
 
 ```toml
-shiny-odds = 14        # 1 in N for the daily roll; 4096 for canonical full odds
-shiny-hunt-odds = 14   # 1 in N for the hunt, so you can change one and not the other
+shiny-odds = 14   # 1 in N; set 4096 for canonical full odds
 ```
 
-To go looking on purpose, hunt: one roll against one random Pokémon, per press.
+Every Pokémon gets its own roll, so **rerolling is how you go looking for one** —
+`--random`, or "Random for today" in the menu, is both the reroll and the hunt.
+There is no separate hunt command, because it would have been the same button.
 
-```bash
-bin/pokemon-theme-gen --hunt      # or the "Shiny hunt" row in the menu
-```
-
-A hunt that lands is remembered for the rest of the day, so the timer cannot
-regenerate it away, and it notifies with the odds it just beat. `--shiny` forces
-today's outright; `--no-shiny` forces it back.
+A shiny that turns up is remembered for the rest of the day, so the timer cannot
+regenerate it away, and the reroll notification says which odds it beat. `--shiny`
+forces today's outright; `--no-shiny` forces it back.
 
 ## Lock screen
 
@@ -343,7 +339,7 @@ worth testing is that the clamps hold for *any* input colour, not just for
 eighteen type colours. Worst case across both is 4.93:1.
 
 `validate_shiny.py` checks the odds are the odds (400k draws at 1-in-14, 1-in-64
-and 1-in-4096), that a day's roll is deterministic, and that the config keys reach
+and 1-in-4096), that a day's roll is deterministic, and that the config key reaches
 the roll. That last one caught a real bug: `set_key` quoted everything it wrote,
 so `shiny-odds = "4096"` came back a string and was silently ignored.
 
@@ -368,7 +364,7 @@ the specific mistake that caused exactly that.
 | `lib/wallpaper.py` | ImageMagick composition |
 | `lib/artwork.py` | The creature's dominant colour, quantized and cached |
 | `lib/atomic.py` | Replace-by-rename, and the two temp-name traps |
-| `lib/shiny.py` | The odds, the daily roll and the hunt |
+| `lib/shiny.py` | The odds, and the roll against them |
 | `lib/state.py` | What is written out now: day, Pokémon, and why |
 | `lib/xdg.py` | The config, state and cache directories |
 | `lib/tomlout.py` | Shared rendering for the generated TOML sections |

@@ -88,9 +88,9 @@ def main():
     if pins.resolve(TODAY, dex, types, "PIKACHU").name != "pikachu":
         failures.append("case-insensitive lookup failed")
 
-    # Shininess has the same lifetime as the name it was pinned with: a hunted
-    # shiny must survive the timer regenerating over it, and must not outlive the
-    # day it was found on.
+    # Shininess has the same lifetime as the name it was pinned with: a shiny
+    # must survive the timer regenerating over it, and must not outlive the day it
+    # was found on.
     pins.write_today(TODAY, "gengar", True)
     if not pins.resolve(TODAY, dex, types).shiny:
         failures.append("a shiny pinned for today came back normal")

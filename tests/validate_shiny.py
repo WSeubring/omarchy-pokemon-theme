@@ -85,22 +85,12 @@ def main():
     if not shiny.rolled("2026-08-18", "gengar"):
         failures.append("configured odds of 1 did not produce a shiny")
 
-    # The hunt has its own key, and falls back to the daily odds when unset.
-    if shiny.hunt_odds() != 1:
-        failures.append("hunt odds did not fall back to shiny-odds")
-    config.set_key(shiny.HUNT_ODDS_KEY, 7)
-    if shiny.hunt_odds() != 7:
-        failures.append("shiny-hunt-odds in the config was ignored")
-    if shiny.odds() != 1:
-        failures.append("the hunt key changed the daily odds")
-
     # Nonsense falls back rather than raising: the file is hand-edited.
     for bad in ("lots", -3, 0, True):
         config.set_key(shiny.ODDS_KEY, bad)
         if shiny.odds() != shiny.DEFAULT_ODDS:
             failures.append("bad shiny-odds %r gave %r" % (bad, shiny.odds()))
     config.clear_key(shiny.ODDS_KEY)
-    config.clear_key(shiny.HUNT_ODDS_KEY)
     if shiny.odds() != shiny.DEFAULT_ODDS:
         failures.append("clearing the key did not restore the default")
 

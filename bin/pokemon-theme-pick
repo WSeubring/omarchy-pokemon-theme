@@ -17,17 +17,16 @@ mode="today"
 case "${1:-}" in
 --pin) mode="pin" ;;
 --random) mode="random" ;;
---hunt) mode="hunt" ;;
 --today | "") mode="today" ;;
 -h | --help)
   cat <<USAGE
-Usage: pokemon-theme-pick [--today|--random|--hunt|--pin]
+Usage: pokemon-theme-pick [--today|--random|--pin]
 
 Opens the omarchy menu to pick a Pokemon.
 
   --today   use it until midnight (default)
-  --random  skip the list, take a random one until midnight
-  --hunt    one shiny roll against a random Pokemon; press it again
+  --random  skip the list, take a random one until midnight; it rolls for
+            shiny like any other day, so this is also how you hunt one
   --pin     pin it permanently in the user config
 USAGE
   exit 0
@@ -47,8 +46,7 @@ announce() {
   [[ -n $name ]] || return 0
   title="${name^} — ${types:-?}"
   body="Theme updated"
-  # A shiny is the whole reason the hunt row exists, so it does not get the same
-  # notification as an ordinary reroll.
+  # A shiny is rare enough to deserve more than the ordinary reroll toast.
   if [[ $line == *SHINY* ]]; then
     title="✨ Shiny ${name^} — ${types:-?}"
     body="One in $(shiny_odds). Theme updated"
@@ -56,21 +54,15 @@ announce() {
   omarchy-notification-send -t 4000 "$title" "$body" 2>/dev/null || true
 }
 
-# The odds the hunt just beat, straight from the same place the generator reads
-# them, so a shortened `shiny-hunt-odds` is reported honestly.
+# The odds it just beat, straight from the same place the generator reads them,
+# so a configured `shiny-odds` is reported honestly.
 shiny_odds() {
-  python3 -c "import sys; sys.path.insert(0, '$REPO/lib'); import shiny; print(shiny.hunt_odds())" 2>/dev/null || echo "?"
+  python3 -c "import sys; sys.path.insert(0, '$REPO/lib'); import shiny; print(shiny.odds())" 2>/dev/null || echo "?"
 }
 
-# Neither --random nor --hunt needs the list, so neither needs the menu to be
-# available at all.
+# --random needs no list, so it does not need the menu to be available at all.
 if [[ $mode == random ]]; then
   announce "$("$GEN" --random | tail -1)"
-  exit 0
-fi
-
-if [[ $mode == hunt ]]; then
-  announce "$("$GEN" --hunt | tail -1)"
   exit 0
 fi
 

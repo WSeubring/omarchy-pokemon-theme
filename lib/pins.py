@@ -8,8 +8,8 @@ Three sources, each with a different lifetime:
 
 The today-only pin is a file holding "<date> <name> [shiny]" and is consulted
 only while the date still matches. Shininess rides along with the name because a
-hunted shiny has to survive the timer and the theme-set hook regenerating over
-it -- rerolling that from odds would lose it within the hour. That is deliberately not a timestamp to compare against:
+shiny found by rerolling has to survive the timer and the theme-set hook
+regenerating over it -- deriving it again from the odds would lose it. That is deliberately not a timestamp to compare against:
 there is nothing to expire, nothing to clean up, and no way for it to leak into
 tomorrow if the machine is asleep at midnight.
 """
@@ -38,8 +38,8 @@ SLUGS = {ROLL: "roll", REQUESTED: "requested", TODAY: "today", CONFIG: "config"}
 
 
 # What the day resolved to, and why. A record rather than a widening tuple: every
-# caller wants the name, most want the types, and only the generator cares that
-# it was hunted shiny.
+# caller wants the name, most want the types, and only the generator cares about
+# the finish.
 Choice = collections.namedtuple("Choice", "dex_id name types source shiny")
 
 
@@ -74,8 +74,7 @@ def clear_today():
 def resolve(day, dex, types, requested=None, force_shiny=None):
     """Decide the day's Pokemon. Returns a Choice.
 
-    `force_shiny` overrides the odds -- True from a successful hunt or --shiny,
-    False from --no-shiny. Left as None, a pin gets exactly the same chance of
+    `force_shiny` overrides the odds -- True from --shiny, False from --no-shiny. Left as None, a pin gets exactly the same chance of
     being shiny as the daily roll does: choosing the Pokemon is not choosing how
     it looks.
 

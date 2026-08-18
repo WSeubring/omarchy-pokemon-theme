@@ -217,10 +217,8 @@ def main():
     ap.add_argument("--pokemon", metavar="NAME",
                     help="use this Pokemon for today; reverts at midnight")
     ap.add_argument("--random", action="store_true",
-                    help="use a random Pokemon for today; reverts at midnight")
-    ap.add_argument("--hunt", action="store_true",
-                    help="hunt: a random Pokemon, shiny at 1 in %d"
-                         % shiny.hunt_odds())
+                    help="use a random Pokemon for today, with its own shiny "
+                         "roll at 1 in %d; reverts at midnight" % shiny.odds())
     ap.add_argument("--shiny", action="store_true",
                     help="force today's Pokemon shiny, whatever the odds said")
     ap.add_argument("--no-shiny", action="store_true",
@@ -274,13 +272,6 @@ def main():
     force_shiny = True if args.shiny else (False if args.no_shiny else None)
 
     requested = args.pokemon
-    if args.hunt:
-        # A hunt is one roll of the odds against one random Pokemon. Not a loop:
-        # the row exists to be pressed again, and a loop that ran until it found
-        # one would just be --shiny with extra steps.
-        requested = random.choice([n for n in dex if n != state.name()])
-        if force_shiny is None:
-            force_shiny = shiny.hunted()
     if args.random:
         # Excluding what is already showing matters more here than for the daily
         # roll: someone choosing "random" is asking to see something change, and
@@ -297,7 +288,7 @@ def main():
     if requested or force_shiny is not None:
         # Remembered for the rest of the day, so the timer, the boot catch-up and
         # the theme-set hook do not quietly roll an explicit choice back -- a
-        # hunted shiny in particular would otherwise last until the next apply.
+        # shiny in particular would otherwise last only until the next apply.
         pins.write_today(args.date, name, choice.shiny)
 
     # The name is part of the check, not just the date: editing `pokemon` in the
