@@ -20,10 +20,10 @@ sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import ambient  # noqa: E402
 import config  # noqa: E402
-import pins  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
-import schedule  # noqa: E402
+import pins  # noqa: E402
+import state  # noqa: E402
 import wallpaper  # noqa: E402
 import xdg  # noqa: E402
 from oklch import hex_to_oklch  # noqa: E402
@@ -35,10 +35,6 @@ ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
 # copies the whole theme into a staging dir on every apply, and a growing cache
 # would be copied along with it.
 CACHE = xdg.cache("artwork")
-# Records which date/Pokemon is currently written out, so the timer, the boot
-# hook and a manual theme switch can all fire without doing the work three
-# times. Kept outside the theme dir for the same reason as the cache.
-STATE = xdg.state("current")
 
 # One file only: omarchy's background chooser cycles the sorted list, so a
 # single entry is the only way to guarantee today's wallpaper is the one picked.
@@ -83,32 +79,6 @@ def icon_theme(accent):
     hue = hex_to_oklch(accent)[2]
     return min(YARU_HUES,
                key=lambda name: abs(((YARU_HUES[name] - hue + 180) % 360) - 180))
-
-
-def current_name():
-    """The Pokemon currently written out, whatever day it was written for."""
-    try:
-        with open(STATE) as fh:
-            return fh.read().split()[1]
-    except (OSError, IndexError):
-        return None
-
-
-def already_current(day, name):
-    """True if this exact day-and-Pokemon is already written out and intact."""
-    try:
-        with open(STATE) as fh:
-            parts = fh.read().split()
-        stamp, current = parts[0], parts[1]
-    except (OSError, IndexError):
-        return False
-    return stamp == day and current == name and os.path.exists(BACKGROUND)
-
-
-def record(day, name, source):
-    os.makedirs(os.path.dirname(STATE), exist_ok=True)
-    with open(STATE, "w") as fh:
-        fh.write("%s %s %s\n" % (day, name, source))
 
 
 def load(name):
@@ -230,7 +200,7 @@ def main():
         # Excluding what is already showing matters more here than for the daily
         # roll: someone choosing "random" is asking to see something change, and
         # a 1-in-905 no-op reads as a broken button.
-        requested = random.choice([n for n in dex if n != current_name()])
+        requested = random.choice([n for n in dex if n != state.name()])
 
     try:
         dex_id, name, kinds, source = pins.resolve(args.date, dex, types,
@@ -246,7 +216,9 @@ def main():
     # The name is part of the check, not just the date: editing `pokemon` in the
     # config by hand should take effect on the next run rather than waiting for
     # tomorrow or needing --force.
-    if not args.force and already_current(args.date, name):
+    # `os.path.exists` guards a state file that outlived its wallpaper.
+    if not args.force and state.matches(args.date, name) \
+            and os.path.exists(BACKGROUND):
         print("%s already current: %s; nothing to do" % (args.date, name))
         return
 
@@ -287,7 +259,7 @@ def main():
         os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
         wallpaper.render(artwork_for(dex_id), colors, BACKGROUND, w, h)
 
-    record(args.date, name, pins.SLUGS.get(source, "roll"))
+    state.write(args.date, name, pins.SLUGS.get(source, "roll"))
 
     print("%s  #%d %s (%s)  accent %s  [%s]"
           % (args.date, dex_id, name, "/".join(kinds), colors["accent"], source))
