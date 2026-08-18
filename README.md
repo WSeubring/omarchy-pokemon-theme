@@ -30,6 +30,12 @@ two-stop border gradient and a second layer of ambient motion.
 
 ![The whole desktop on a Golbat day](preview.png)
 
+The same desktop on a Venusaur, Charizard and Blastoise day:
+
+![A Venusaur day](docs/desktop-venusaur.jpg)
+![A Charizard day](docs/desktop-charizard.jpg)
+![A Blastoise day](docs/desktop-blastoise.jpg)
+
 ## Install
 
 ```bash
