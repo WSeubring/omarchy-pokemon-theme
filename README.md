@@ -61,6 +61,39 @@ To stop it: `./uninstall.sh`.
 
 ## Picking a specific Pokémon
 
+From the omarchy menu, under **Pokémon** — search all 905 by name, with the
+active one ticked:
+
+```
+Pokémon…
+   Pick for today     search all 905; reverts at midnight
+   Pin permanently    keep one until you unpin it
+   Unpin              back to a new one each day
+   Roll again         regenerate today's theme
+```
+
+Those rows carry a `when` condition, so the whole section is hidden unless this
+theme is the active one — a row whose `when` fails is hidden, and a submenu whose
+rows are all hidden goes with it.
+
+The picker pipes all 905 names into `omarchy-menu-select`, so the menu's own
+fuzzy search *is* the autocomplete. That deliberately avoids writing 905 rows
+into `omarchy-menu.jsonc`, and avoids needing a custom menu provider: the
+provider table lives in the menu plugin's QML and cannot be extended from a
+config file, so an unknown provider name is silently ignored.
+
+The rows are spliced into `~/.config/omarchy/extensions/omarchy-menu.jsonc`
+between sentinel comments and nothing outside them is touched, the same
+convention `omarchy-gitlab-menu-sync` uses. Re-running is idempotent and
+`--remove` restores the file byte for byte:
+
+```bash
+bin/pokemon-theme-menu-install            # add or refresh the rows
+bin/pokemon-theme-menu-install --remove   # take them out again
+```
+
+Or from the command line:
+
 ```bash
 bin/pokemon-theme-gen --pokemon gengar   # just for today
 bin/pokemon-theme-gen --pin lapras       # permanently
@@ -276,6 +309,8 @@ python3 tests/validate_pins.py       # pin precedence and expiry
 | `plugins/background/` | The optional ambient background plugin |
 | `systemd/` | The daily timer and its service |
 | `hooks/theme-set` | Regenerates when you switch to this theme |
+| `bin/pokemon-theme-pick` | The native menu picker over all 905 |
+| `bin/pokemon-theme-menu-install` | Splices the menu rows in and out |
 
 `colors.toml`, `icons.theme`, `shell.lock.toml` and `backgrounds/today.jpg` are
 generated. The wallpaper and the lock file are gitignored — a missing lock file
