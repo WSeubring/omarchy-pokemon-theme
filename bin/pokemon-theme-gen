@@ -24,6 +24,7 @@ import config  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
 import pins  # noqa: E402
+import shiny  # noqa: E402
 import state  # noqa: E402
 import wallpaper  # noqa: E402
 import xdg  # noqa: E402
@@ -31,7 +32,7 @@ from oklch import hex_to_oklch  # noqa: E402
 
 SLUG = "pokemon"
 ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
-               "/sprites/pokemon/other/official-artwork/%d.png")
+               "/sprites/pokemon/other/official-artwork/%s%d.png")
 # Artwork lives outside the theme directory on purpose: `omarchy-theme-set`
 # copies the whole theme into a staging dir on every apply, and a growing cache
 # would be copied along with it.
@@ -87,14 +88,16 @@ def load(name):
         return json.load(fh)
 
 
-def artwork_for(dex_id):
+def artwork_for(dex_id, is_shiny=False):
     """Return a cached artwork path, or None if it cannot be had."""
     os.makedirs(CACHE, exist_ok=True)
-    path = os.path.join(CACHE, "%d.png" % dex_id)
+    slug = "%d%s" % (dex_id, "-shiny" if is_shiny else "")
+    path = os.path.join(CACHE, "%s.png" % slug)
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
     try:
-        with urllib.request.urlopen(ARTWORK_URL % dex_id, timeout=20) as resp:
+        url = ARTWORK_URL % ("shiny/" if is_shiny else "", dex_id)
+        with urllib.request.urlopen(url, timeout=20) as resp:
             data = resp.read()
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         print("artwork unavailable (%s); rendering ground only" % exc,
@@ -154,6 +157,15 @@ def main():
                     help="use this Pokemon for today; reverts at midnight")
     ap.add_argument("--random", action="store_true",
                     help="use a random Pokemon for today; reverts at midnight")
+    ap.add_argument("--hunt", action="store_true",
+                    help="hunt: a random Pokemon, shiny at 1 in %d"
+                         % shiny.hunt_odds())
+    ap.add_argument("--shiny", action="store_true",
+                    help="force today's Pokemon shiny, whatever the odds said")
+    ap.add_argument("--no-shiny", action="store_true",
+                    help="force today's Pokemon normal")
+    ap.add_argument("--type-hue", action="store_true",
+                    help="take the accent from the type colour, not the artwork")
     ap.add_argument("--pin", metavar="NAME",
                     help="pin this Pokemon permanently, in the user config")
     ap.add_argument("--unpin", action="store_true",
@@ -167,8 +179,6 @@ def main():
                     help="write the background section with motion switched off")
     ap.add_argument("--no-lock-sync", action="store_true",
                     help="leave the lock screen to roll its own Pokemon")
-    ap.add_argument("--type-hue", action="store_true",
-                    help="take the accent from the type colour, not the artwork")
     ap.add_argument("--force", action="store_true",
                     help="regenerate even if today's theme is already written")
     args = ap.parse_args()
@@ -180,6 +190,8 @@ def main():
         sys.exit("--pin and --unpin are mutually exclusive")
     if args.random and args.pokemon:
         sys.exit("--random and --pokemon are mutually exclusive")
+    if args.shiny and args.no_shiny:
+        sys.exit("--shiny and --no-shiny are mutually exclusive")
 
     if args.pin:
         pinned = args.pin.lower()
@@ -198,7 +210,16 @@ def main():
         print("unpinned" if removed else "nothing was pinned")
         args.force = True
 
+    force_shiny = True if args.shiny else (False if args.no_shiny else None)
+
     requested = args.pokemon
+    if args.hunt:
+        # A hunt is one roll of the odds against one random Pokemon. Not a loop:
+        # the row exists to be pressed again, and a loop that ran until it found
+        # one would just be --shiny with extra steps.
+        requested = random.choice([n for n in dex if n != state.name()])
+        if force_shiny is None:
+            force_shiny = shiny.hunted()
     if args.random:
         # Excluding what is already showing matters more here than for the daily
         # roll: someone choosing "random" is asking to see something change, and
@@ -206,21 +227,23 @@ def main():
         requested = random.choice([n for n in dex if n != state.name()])
 
     try:
-        dex_id, name, kinds, source = pins.resolve(args.date, dex, types,
-                                                  requested)
+        choice = pins.resolve(args.date, dex, types, requested, force_shiny)
     except ValueError as exc:
         sys.exit(str(exc))
+    dex_id, name, kinds, source = (choice.dex_id, choice.name, choice.types,
+                                   choice.source)
 
-    if requested:
+    if requested or force_shiny is not None:
         # Remembered for the rest of the day, so the timer, the boot catch-up and
-        # the theme-set hook do not quietly roll an explicit choice back.
-        pins.write_today(args.date, name)
+        # the theme-set hook do not quietly roll an explicit choice back -- a
+        # hunted shiny in particular would otherwise last until the next apply.
+        pins.write_today(args.date, name, choice.shiny)
 
     # The name is part of the check, not just the date: editing `pokemon` in the
     # config by hand should take effect on the next run rather than waiting for
     # tomorrow or needing --force.
     # `os.path.exists` guards a state file that outlived its wallpaper.
-    if not args.force and state.matches(args.date, name) \
+    if not args.force and state.matches(args.date, name, choice.shiny) \
             and os.path.exists(BACKGROUND):
         print("%s already current: %s; nothing to do" % (args.date, name))
         return
@@ -228,16 +251,16 @@ def main():
     # Fetched before the palette rather than with the wallpaper: the creature's
     # own colours are the palette's starting point, so the download has to have
     # happened by now. It is cached, so a second run costs nothing.
-    art = artwork_for(dex_id)
+    art = artwork_for(dex_id, choice.shiny)
     accent_source = None
     if art and not args.type_hue:
         accent_source = artwork.cached(art, art.rsplit(".", 1)[0] + ".accent")
 
     colors = palette.build(type_colors, kinds, accent_source)
     header = "# Generated by omarchy-pokemon-theme -- do not edit by hand.\n" \
-             "# %s: #%d %s (%s), accent from %s\n" \
-             % (args.date, dex_id, name, "/".join(kinds),
-                "artwork" if accent_source else "type")
+             "# %s: #%d %s%s (%s), accent from %s\n" \
+             % (args.date, dex_id, name, " shiny" if choice.shiny else "",
+                "/".join(kinds), "artwork" if accent_source else "type")
     with open(os.path.join(ROOT, "colors.toml"), "w") as fh:
         fh.write(palette.to_toml(colors, header))
 
@@ -272,10 +295,11 @@ def main():
         os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
         wallpaper.render(art, colors, BACKGROUND, w, h)
 
-    state.write(args.date, name, pins.SLUGS.get(source, "roll"))
+    state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny)
 
-    print("%s  #%d %s (%s)  accent %s  [%s]"
-          % (args.date, dex_id, name, "/".join(kinds), colors["accent"], source))
+    print("%s  #%d %s%s (%s)  accent %s  [%s]"
+          % (args.date, dex_id, name, " SHINY" if choice.shiny else "",
+             "/".join(kinds), colors["accent"], source))
 
     if not args.no_apply:
         apply_theme()

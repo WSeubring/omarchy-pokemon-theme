@@ -6,16 +6,20 @@ Three sources, each with a different lifetime:
 - `today`, a pin that expires on its own at midnight
 - `pokemon` in the user config, which holds until removed
 
-The today-only pin is a file holding "<date> <name>" and is consulted only while
-the date still matches. That is deliberately not a timestamp to compare against:
+The today-only pin is a file holding "<date> <name> [shiny]" and is consulted
+only while the date still matches. Shininess rides along with the name because a
+hunted shiny has to survive the timer and the theme-set hook regenerating over
+it -- rerolling that from odds would lose it within the hour. That is deliberately not a timestamp to compare against:
 there is nothing to expire, nothing to clean up, and no way for it to leak into
 tomorrow if the machine is asleep at midnight.
 """
 
+import collections
 import os
 
 import config
 import schedule
+import shiny as shiny_odds
 import xdg
 
 PATH = xdg.state("override")
@@ -33,20 +37,29 @@ CONFIG = "pinned in config"
 SLUGS = {ROLL: "roll", REQUESTED: "requested", TODAY: "today", CONFIG: "config"}
 
 
+# What the day resolved to, and why. A record rather than a widening tuple: every
+# caller wants the name, most want the types, and only the generator cares that
+# it was hunted shiny.
+Choice = collections.namedtuple("Choice", "dex_id name types source shiny")
+
+
 def read_today(day):
-    """The name pinned for `day`, or None."""
+    """(name, shiny) pinned for `day`, or (None, False)."""
     try:
         with open(PATH) as fh:
-            stamp, name = fh.read().split()[:2]
-    except (OSError, ValueError):
-        return None
-    return name if stamp == day else None
+            fields = fh.read().split()
+        stamp, name = fields[0], fields[1]
+    except (OSError, IndexError):
+        return None, False
+    if stamp != day:
+        return None, False
+    return name, "shiny" in fields[2:]
 
 
-def write_today(day, name):
+def write_today(day, name, is_shiny=False):
     os.makedirs(os.path.dirname(PATH), exist_ok=True)
     with open(PATH, "w") as fh:
-        fh.write("%s %s\n" % (day, name))
+        fh.write("%s %s%s\n" % (day, name, " shiny" if is_shiny else ""))
 
 
 def clear_today():
@@ -58,29 +71,41 @@ def clear_today():
         return False
 
 
-def resolve(day, dex, types, requested=None):
-    """Decide the day's Pokemon. Returns (dex_id, name, kinds, source).
+def resolve(day, dex, types, requested=None, force_shiny=None):
+    """Decide the day's Pokemon. Returns a Choice.
+
+    `force_shiny` overrides the odds -- True from a successful hunt or --shiny,
+    False from --no-shiny. Left as None, a pin gets exactly the same chance of
+    being shiny as the daily roll does: choosing the Pokemon is not choosing how
+    it looks.
 
     Raises ValueError for a name that is not in the dex, so a typo in the config
     or on the command line is reported rather than silently ignored.
     """
-    name, source = None, ROLL
+    name, source, was_shiny = None, ROLL, False
 
     if requested:
         name, source = requested, REQUESTED
     else:
-        today = read_today(day)
+        today, was_shiny = read_today(day)
         permanent = config.pinned()
         if today:
             name, source = today, TODAY
         elif permanent:
-            name, source = permanent, CONFIG
+            name, source, was_shiny = permanent, CONFIG, False
 
     if name is None:
         dex_id, name, kinds = schedule.pick(day, dex, types)
-        return dex_id, name, kinds, source
+    else:
+        name = name.lower()
+        if name not in types:
+            raise ValueError("unknown pokemon: %s" % name)
+        dex_id, kinds = dex.index(name) + 1, types[name]
 
-    name = name.lower()
-    if name not in types:
-        raise ValueError("unknown pokemon: %s" % name)
-    return dex.index(name) + 1, name, types[name], source
+    if force_shiny is None:
+        # A pin set earlier today keeps whatever it was pinned as; anything else
+        # asks the odds.
+        is_shiny = was_shiny or shiny_odds.rolled(day, name)
+    else:
+        is_shiny = force_shiny
+    return Choice(dex_id, name, kinds, source, is_shiny)

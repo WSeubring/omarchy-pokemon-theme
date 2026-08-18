@@ -40,7 +40,8 @@ def main():
     failures = []
 
     def check(label, expect_name, expect_source, day=TODAY, requested=None):
-        _, name, _, source = pins.resolve(day, dex, types, requested)
+        choice = pins.resolve(day, dex, types, requested)
+        name, source = choice.name, choice.source
         ok = (expect_name is None or name == expect_name) and source == expect_source
         if not ok:
             failures.append("%s: got %s [%s], expected %s [%s]"
@@ -84,9 +85,27 @@ def main():
     config.clear_key("pokemon")
 
     # Case should not matter, since these get typed by hand.
-    _, name, _, _ = pins.resolve(TODAY, dex, types, "PIKACHU")
-    if name != "pikachu":
-        failures.append("case-insensitive lookup failed: %s" % name)
+    if pins.resolve(TODAY, dex, types, "PIKACHU").name != "pikachu":
+        failures.append("case-insensitive lookup failed")
+
+    # Shininess has the same lifetime as the name it was pinned with: a hunted
+    # shiny must survive the timer regenerating over it, and must not outlive the
+    # day it was found on.
+    pins.write_today(TODAY, "gengar", True)
+    if not pins.resolve(TODAY, dex, types).shiny:
+        failures.append("a shiny pinned for today came back normal")
+    if pins.resolve(TOMORROW, dex, types).shiny:
+        failures.append("today's shiny reached tomorrow")
+    if pins.resolve(TODAY, dex, types, force_shiny=False).shiny:
+        failures.append("--no-shiny did not override a shiny pin")
+    pins.clear_today()
+
+    # The odds are the default for anything not explicitly forced, and forcing
+    # works in both directions.
+    if not pins.resolve(TODAY, dex, types, "mew", force_shiny=True).shiny:
+        failures.append("--shiny did not force a shiny")
+    if pins.resolve(TODAY, dex, types, "mew", force_shiny=False).shiny:
+        failures.append("--no-shiny did not force a normal")
 
     shutil.rmtree(SANDBOX, ignore_errors=True)
 
