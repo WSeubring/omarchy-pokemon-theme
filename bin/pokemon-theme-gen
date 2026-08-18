@@ -25,6 +25,7 @@ import lockscreen  # noqa: E402
 import palette  # noqa: E402
 import schedule  # noqa: E402
 import wallpaper  # noqa: E402
+import xdg  # noqa: E402
 from oklch import hex_to_oklch  # noqa: E402
 
 SLUG = "pokemon"
@@ -33,15 +34,11 @@ ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
 # Artwork lives outside the theme directory on purpose: `omarchy-theme-set`
 # copies the whole theme into a staging dir on every apply, and a growing cache
 # would be copied along with it.
-CACHE = os.path.join(
-    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
-    "omarchy-pokemon-theme", "artwork")
+CACHE = xdg.cache("artwork")
 # Records which date/Pokemon is currently written out, so the timer, the boot
 # hook and a manual theme switch can all fire without doing the work three
 # times. Kept outside the theme dir for the same reason as the cache.
-STATE = os.path.join(
-    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
-    "omarchy-pokemon-theme", "current")
+STATE = xdg.state("current")
 
 # One file only: omarchy's background chooser cycles the sorted list, so a
 # single entry is the only way to guarantee today's wallpaper is the one picked.

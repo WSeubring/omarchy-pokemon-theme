@@ -16,11 +16,9 @@ import os
 
 import config
 import schedule
+import xdg
 
-PATH = os.path.join(
-    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
-    "omarchy-pokemon-theme", "override",
-)
+PATH = xdg.state("override")
 
 # Sources, in the order they win. Used for the line the generator prints, so
 # "why is today a Lapras" is answerable without reading any files.

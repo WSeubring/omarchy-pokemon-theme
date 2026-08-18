@@ -11,10 +11,9 @@ comments and any keys this version does not know about survive being edited.
 import os
 import tomllib
 
-PATH = os.path.join(
-    os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
-    "omarchy-pokemon-theme", "config.toml",
-)
+import xdg
+
+PATH = xdg.config("config.toml")
 
 TEMPLATE = """\
 # omarchy-pokemon-theme
