@@ -183,6 +183,10 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
                  ")", "-gravity", "NorthWest", "-geometry", "+0+0",
                  "-compose", "screen", "-composite"]
 
+    # JPEG q92 over lossless PNG, tried and rolled back: PNG with a Lanczos
+    # upscale and dithered 8-bit gradients was technically cleaner but read
+    # worse on screen -- the encoder's slight softening flatters the upscaled
+    # artwork. At q92 ImageMagick already keeps 4:4:4 chroma.
     args += ["-quality", "92", out_path]
     _run(args)
 
