@@ -5,7 +5,7 @@ day. Its **own artwork** sets the palette, the whole desktop retints to match,
 and that artwork becomes the wallpaper. Every couple of weeks, it shows up
 shiny.
 
-![Six days of the theme](docs/gallery.jpg)
+![The Gen 1 starters, their evolutions, and a few iconic Pokémon](docs/gallery.jpg)
 
 Companion to [omarchy-lock-pokemon](https://github.com/WSeubring/omarchy-lock-pokemon),
 which does the same thing to the lock screen: with both installed, unlocking
@@ -27,6 +27,8 @@ palette carries all the way out to the edges:
 The colours come from the creature's own artwork: Charizard's orange belly,
 Lapras's specific blue, Umbreon's yellow rings. Dual types show up too, as a
 two-stop border gradient and a second layer of ambient motion.
+
+![The whole desktop on a Golbat day](preview.png)
 
 ## Install
 
