@@ -1,8 +1,8 @@
 # Pokémon Theme
 
 An [Omarchy](https://omarchy.org/) 4 theme that picks a different Pokémon every
-day. Its types set the palette, the whole desktop retints to match, and the
-official artwork becomes the wallpaper.
+day. Its **own artwork** sets the palette, the whole desktop retints to match, and
+that artwork becomes the wallpaper. About once a decade, it shows up shiny.
 
 ![Six days of the theme](docs/gallery.jpg)
 
@@ -100,6 +100,7 @@ Or from the command line:
 ```bash
 bin/pokemon-theme-gen --pokemon gengar   # just for today
 bin/pokemon-theme-gen --random           # a random one, just for today
+bin/pokemon-theme-gen --hunt             # a random one, rolled for shiny
 bin/pokemon-theme-gen --pin lapras       # permanently
 bin/pokemon-theme-gen --unpin            # back to the daily roll
 ```
@@ -138,6 +139,34 @@ midnight.
 
 Pinning matters for more than novelty: the daily roll can hand you a Pokémon
 whose palette you dislike, and unpinning is one command away.
+
+## Shiny
+
+Every day rolls for shiny at **1 in 4096** — the gen 6+ full-odds number, which
+with one roll a day works out to about once a decade. A shiny day uses the shiny
+artwork, and since the palette comes from the artwork, the whole desktop changes
+with it: shiny Charizard themes the machine black-and-red instead of orange.
+
+The roll is deterministic per day and name, so the timer, the boot catch-up and
+the theme-set hook all agree about today. Pinning a Pokémon does not pin its
+finish — a pin gets exactly the same odds a rolled day does.
+
+Odds are configurable in `~/.config/omarchy-pokemon-theme/config.toml`:
+
+```toml
+shiny-odds = 4096        # 1 in N for the daily roll
+shiny-hunt-odds = 4096   # 1 in N for the hunt, so you can shorten one and not the other
+```
+
+To go looking on purpose, hunt: one roll against one random Pokémon, per press.
+
+```bash
+bin/pokemon-theme-gen --hunt      # or the "Shiny hunt" row in the menu
+```
+
+A hunt that lands is remembered for the rest of the day, so the timer cannot
+regenerate it away, and it notifies with the odds it just beat. To see one
+without waiting a decade, `--shiny` forces today's; `--no-shiny` forces it back.
 
 ## Lock screen
 
@@ -216,7 +245,17 @@ and the `debug` switch.
 
 ## How the palette is built
 
-The day's Pokémon supplies **hue and nothing else**. Lightness and chroma come
+The hue comes from the **creature's own artwork**. The sprite is quantized to
+eight colours and scored by coverage × chroma, so the winner is the largest
+region that actually has a colour — Charizard's orange belly rather than fire
+red, Lapras's specific blue, Umbreon's yellow rings rather than its black body.
+A flat-grey Magnemite scores nothing worth having, and the clamps below carry it.
+
+Type colours remain the fallback (no network, no artwork) and still own the
+second border stop, which is a statement about category rather than pixels.
+`--type-hue` opts a run back into the old type-only behaviour.
+
+Whichever source wins, the Pokémon supplies **hue and nothing else**. Lightness and chroma come
 from a fixed ladder measured off the stock Catppuccin and Tokyo Night themes,
 whose neutral tokens all sit within about ten degrees of a single hue — that
 unity is what reads as "a theme" rather than "some colours".
@@ -290,11 +329,20 @@ python3 tests/validate_contrast.py   # all 905 palettes vs WCAG, and hue drift
 python3 tests/validate_schedule.py   # stability, spread, no near repeats
 python3 tests/validate_sprites.py    # every name resolves to a sprite
 python3 tests/validate_pins.py       # pin precedence and expiry
+python3 tests/validate_shiny.py      # odds, determinism, config
 python3 tests/validate_menu.py       # menu splice, idempotency, removal
 ```
 
-`validate_contrast.py` builds every palette and asserts each text token clears
-4.5:1 against its own background. Current worst case is 4.95:1, on Arbok.
+`validate_contrast.py` runs two passes: the 905 type-based palettes, and a sweep
+of every hue at four extremes of lightness and chroma. The second pass is the one
+that matters now — the accent comes from an arbitrary sprite pixel, so the claim
+worth testing is that the clamps hold for *any* input colour, not just for
+eighteen type colours. Worst case across both is 4.93:1.
+
+`validate_shiny.py` checks the odds are the odds (400k draws against 1-in-64 and
+1-in-4096), that a day's roll is deterministic, and that the config keys reach
+the roll. That last one caught a real bug: `set_key` quoted everything it wrote,
+so `shiny-odds = "4096"` came back a string and was silently ignored.
 
 `validate_menu.py` earns its keep for a different reason: `omarchy-menu.jsonc` is
 shared with every other tool that adds rows, so one bad character does not break
@@ -315,6 +363,8 @@ the specific mistake that caused exactly that.
 | `lib/lockscreen.py` | The `shell.lock.toml` that pins the lock screen |
 | `lib/ambient.py` | The `shell.background.toml` that drives the motion |
 | `lib/wallpaper.py` | ImageMagick composition |
+| `lib/artwork.py` | The creature's dominant colour, quantized and cached |
+| `lib/shiny.py` | The odds, the daily roll and the hunt |
 | `lib/state.py` | What is written out now: day, Pokémon, and why |
 | `lib/xdg.py` | The config, state and cache directories |
 | `lib/tomlout.py` | Shared rendering for the generated TOML sections |
@@ -336,6 +386,9 @@ only means the lock screen rolls its own Pokémon. `colors.toml` and
 configs at all, and a fresh clone should apply cleanly before the first run.
 
 ## Notes
+
+Shiny artwork is a separate fetch and a separate cache entry, as is the colour
+extracted from it, so a shiny day never reuses the normal palette.
 
 Artwork is fetched once per Pokémon from the
 [PokeAPI sprites](https://github.com/PokeAPI/sprites) repo and cached under
