@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import ambient  # noqa: E402
 import artwork  # noqa: E402
+import atomic  # noqa: E402
 import config  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
@@ -261,11 +262,24 @@ def main():
              "# %s: #%d %s%s (%s), accent from %s\n" \
              % (args.date, dex_id, name, " shiny" if choice.shiny else "",
                 "/".join(kinds), "artwork" if accent_source else "type")
-    with open(os.path.join(ROOT, "colors.toml"), "w") as fh:
-        fh.write(palette.to_toml(colors, header))
 
-    with open(os.path.join(ROOT, "icons.theme"), "w") as fh:
-        fh.write(icon_theme(colors["accent"]) + "\n")
+    # The wallpaper takes seconds to composite, and until every file agrees the
+    # theme directory describes two different Pokemon -- which is exactly what a
+    # switch looked like: the previous one stayed on screen, then everything
+    # jumped. So the slow work happens before anything the desktop reads is
+    # touched, and the files land together.
+    if not args.no_wallpaper:
+        if args.size:
+            w, h = (int(v) for v in args.size.lower().split("x"))
+        else:
+            w, h = screen_size()
+        os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
+        wallpaper.render(art, colors, BACKGROUND, w, h)
+
+    atomic.text(os.path.join(ROOT, "colors.toml"),
+                palette.to_toml(colors, header))
+    atomic.text(os.path.join(ROOT, "icons.theme"),
+                icon_theme(colors["accent"]) + "\n")
 
     # Pin omarchy-lock-pokemon to the same Pokemon, so unlocking shows the one
     # already on the desktop. A user who prefers a random lock sets
@@ -275,25 +289,16 @@ def main():
     # is inert without it, so installing the plugin later needs no regeneration.
     type_effects = load("type-effects.json")
     animate = ambient_plugin_installed() and not args.no_animation
-    with open(os.path.join(ROOT, "shell.background.toml"), "w") as fh:
-        fh.write(ambient.section(type_effects, type_colors, kinds,
-                                 enabled=animate, header=header))
+    atomic.text(os.path.join(ROOT, "shell.background.toml"),
+                ambient.section(type_effects, type_colors, kinds,
+                                enabled=animate, header=header))
 
     lock_path = os.path.join(ROOT, "shell.lock.toml")
     if args.no_lock_sync:
         if os.path.exists(lock_path):
             os.remove(lock_path)
     else:
-        with open(lock_path, "w") as fh:
-            fh.write(lockscreen.section(colors, name, header))
-
-    if not args.no_wallpaper:
-        if args.size:
-            w, h = (int(v) for v in args.size.lower().split("x"))
-        else:
-            w, h = screen_size()
-        os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
-        wallpaper.render(art, colors, BACKGROUND, w, h)
+        atomic.text(lock_path, lockscreen.section(colors, name, header))
 
     state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny)
 
