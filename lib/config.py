@@ -21,6 +21,13 @@ TEMPLATE = """\
 # Pin one Pokemon permanently. Commented out means a new one each day.
 # Set it with: bin/pokemon-theme-gen --pin <name>
 # pokemon = "pikachu"
+
+# Shiny odds, as 1 in N. The default is 4096, the gen 6+ full-odds number, which
+# with one roll a day is about once a decade. Shorten it if you would rather see
+# one. The hunt (--hunt, or "Shiny hunt" in the menu) has its own key so making
+# hunting easier does not make an ordinary day less rare.
+# shiny-odds = 4096
+# shiny-hunt-odds = 4096
 """
 
 
@@ -43,9 +50,32 @@ def pinned():
     return str(value).strip().lower() if value else None
 
 
+def positive_int(key, default):
+    """A whole number above zero from the config, or `default`.
+
+    A nonsense value falls back rather than raising: the config is hand-edited,
+    and a typo in the shiny odds should not stop the desktop having a theme.
+    """
+    value = read().get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        if value is not None:
+            print("ignoring %s = %r in %s: want a whole number above zero"
+                  % (key, value, PATH))
+        return default
+    return value
+
+
 def set_key(key, value):
-    """Set `key` to a quoted string, preserving the rest of the file."""
-    rendered = '%s = "%s"' % (key, value)
+    """Set `key`, preserving the rest of the file.
+
+    Whole numbers are written bare and everything else quoted, so a value written
+    here reads back as the type it was set as -- a quoted "4096" would come back
+    a string and be rejected by positive_int().
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        rendered = "%s = %d" % (key, value)
+    else:
+        rendered = '%s = "%s"' % (key, value)
     kept, replaced = [], False
     for line in _lines():
         if _assigns(line, key):
