@@ -56,7 +56,7 @@ fi
 # same operation without the re-insert.
 stripped=$(mktemp)
 trap 'rm -f "$stripped"' EXIT
-awk -v b="$BEGIN" -v e="$END" '
+awk '
   index($0, ">>> pokemon theme:") { skip = 1; next }
   index($0, "<<< pokemon theme <<<") { skip = 0; next }
   !skip { print }
