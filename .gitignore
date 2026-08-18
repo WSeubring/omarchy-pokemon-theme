@@ -1,0 +1,7 @@
+# Rendered daily; regenerated on every run.
+backgrounds/today.jpg
+
+# Fetched artwork lives in XDG cache, but guard against a stray local dir.
+cache/
+__pycache__/
+*.pyc
