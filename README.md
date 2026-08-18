@@ -8,7 +8,8 @@ official artwork becomes the wallpaper.
 
 Companion to [omarchy-lock-pokemon](https://github.com/WSeubring/omarchy-lock-pokemon),
 which does the same thing to the lock screen. The type colours and the
-name-to-type table come from there.
+name-to-type table come from there, and if that plugin is installed the lock
+screen shows the same Pokémon as the desktop — see [Lock screen](#lock-screen).
 
 ## What changes
 
@@ -23,8 +24,9 @@ single generated palette carries all the way out to the edges:
 | Agents | claude, pi |
 | System | hyprland borders, keyboard backlight, icon theme |
 
-The wallpaper and `colors.toml` are the only files this theme writes. Everything
-above follows from them.
+`colors.toml` and the wallpaper are all this theme really writes; everything
+above follows from them. It also emits `icons.theme` and, for the lock screen,
+`shell.lock.toml`.
 
 ## Install
 
@@ -57,6 +59,34 @@ the theme by hand (`omarchy theme set pokemon`, or the theme switcher) also
 regenerates, so you never land on a stale day.
 
 To stop it: `./uninstall.sh`.
+
+## Lock screen
+
+With [omarchy-lock-pokemon](https://github.com/WSeubring/omarchy-lock-pokemon)
+installed, the lock screen shows the day's Pokémon instead of rolling its own,
+so unlocking shows the one already on the desktop.
+
+No change to the plugin is needed — it already supports pinning through
+`lock.pokemon-name`, and the theme just names the day. Shiny rolls still happen,
+so an unlock can still surprise you.
+
+To go back to a random Pokémon on the lock screen, set it empty in
+`~/.config/omarchy/shell.toml`:
+
+```toml
+[lock]
+pokemon-name = ""
+```
+
+The machine-level file wins per key over anything a theme ships, so that one
+line is enough. `bin/pokemon-theme-gen --no-lock-sync` stops the theme writing
+the file at all.
+
+The generated `shell.lock.toml` restates every `[lock]` colour token rather than
+just the name, because `omarchy-theme-set-templates` replaces a section wholesale
+instead of merging keys — a file with only `pokemon-name` in it would drop the
+rest of the lock screen's palette. The two border tokens stay as literal
+`hyprland.*` references so they keep tracking the Hyprland gradient.
 
 ## How the palette is built
 
@@ -91,11 +121,12 @@ apparent brightness" instead of "keep the same number".
 
 The generator will happily produce an unreadable theme if the maths is wrong on
 one of 905 inputs, and you would not find out until that day came around. So
-both properties are checked exhaustively rather than spot-checked:
+each property is checked across the whole set rather than spot-checked:
 
 ```bash
 python3 tests/validate_contrast.py   # all 905 palettes vs WCAG, and hue drift
 python3 tests/validate_schedule.py   # stability, spread, no near repeats
+python3 tests/validate_sprites.py    # every name resolves to a sprite
 ```
 
 `validate_contrast.py` builds every palette and asserts each text token clears
@@ -109,6 +140,7 @@ python3 tests/validate_schedule.py   # stability, spread, no near repeats
 | `lib/oklch.py` | sRGB ↔ OKLCh, with gamut mapping by chroma reduction |
 | `lib/palette.py` | The ladder, the ANSI anchors, and `colors.toml` output |
 | `lib/schedule.py` | Date → Pokémon, deterministic and stateless |
+| `lib/lockscreen.py` | The `shell.lock.toml` that pins the lock screen |
 | `lib/wallpaper.py` | ImageMagick composition |
 | `data/dex.json` | National dex order, so a name gives an artwork id offline |
 | `data/types.json` | Name → types, from PokéAPI via omarchy-lock-pokemon |
@@ -116,9 +148,11 @@ python3 tests/validate_schedule.py   # stability, spread, no near repeats
 | `systemd/` | The daily timer and its service |
 | `hooks/theme-set` | Regenerates when you switch to this theme |
 
-`colors.toml`, `icons.theme` and `backgrounds/today.jpg` are generated. The
-wallpaper is gitignored; the other two are committed so a fresh clone applies
-cleanly before the first run.
+`colors.toml`, `icons.theme`, `shell.lock.toml` and `backgrounds/today.jpg` are
+generated. The wallpaper and the lock file are gitignored — a missing lock file
+only means the lock screen rolls its own Pokémon. `colors.toml` and
+`icons.theme` are committed, since a theme without `colors.toml` generates no
+configs at all, and a fresh clone should apply cleanly before the first run.
 
 ## Notes
 
