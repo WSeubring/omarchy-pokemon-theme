@@ -20,7 +20,7 @@ case "${1:-}" in
 --today | "") mode="today" ;;
 -h | --help)
   cat <<USAGE
-Usage: pokemon-theme-pick [--today|--pin]
+Usage: pokemon-theme-pick [--today|--random|--pin]
 
 Opens the omarchy menu to pick a Pokemon.
 

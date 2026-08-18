@@ -20,7 +20,7 @@ for arg in "$@"; do
   --no-menu) WITH_MENU=0 ;;
   -h | --help)
     cat <<USAGE
-Usage: install.sh [--with-animation]
+Usage: install.sh [--with-animation] [--no-menu]
 
 Links the theme, schedules the daily roll, and applies it.
 
@@ -114,5 +114,5 @@ Done. Today's Pokemon is live.
   ./uninstall.sh                         remove everything this installed
 
 Or from the omarchy menu, under Pokemon (shown while this theme is active):
-  Pick for today / Pin permanently / Unpin / Roll again
+  Pick for today / Random for today / Pin permanently / Back to daily
 DONE
