@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "local.background",
+  "name": "Ambient Background",
+  "version": "1.0.0",
+  "author": "Wesley Seubring",
+  "description": "Desktop background renderer with optional ambient motion, driven by [background] in shell.toml.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Background.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.background"
+  }
+}
