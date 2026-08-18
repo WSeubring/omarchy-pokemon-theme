@@ -12,7 +12,8 @@ set -uo pipefail
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" || exit 1
 
 tests=(validate_schedule.py validate_pins.py validate_shiny.py
-       validate_menu.py validate_contrast.py validate_sprites.py)
+       validate_render.py validate_menu.py validate_contrast.py
+       validate_sprites.py)
 [[ ${1:-} == --quick ]] && tests=("${tests[@]/validate_sprites.py/}")
 
 failed=()
