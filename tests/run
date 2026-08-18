@@ -1,0 +1,29 @@
+#!/bin/bash
+# Run every validator, and report which ones failed rather than stopping at the
+# first: they are independent checks, and knowing "contrast and sprites both
+# broke" is worth more than one early exit.
+#
+# validate_sprites.py shells out to pokemon-colorscripts once per Pokemon, so it
+# takes minutes where the rest take seconds. Skip it with --quick; it also skips
+# itself when pokemon-colorscripts is not installed.
+
+set -uo pipefail
+
+cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" || exit 1
+
+tests=(validate_schedule.py validate_pins.py validate_menu.py
+       validate_contrast.py validate_sprites.py)
+[[ ${1:-} == --quick ]] && tests=("${tests[@]/validate_sprites.py/}")
+
+failed=()
+for t in "${tests[@]}"; do
+  [[ -n $t ]] || continue
+  printf '\033[1m==> %s\033[0m\n' "$t"
+  python3 "$t" || failed+=("$t")
+done
+
+if (( ${#failed[@]} )); then
+  printf '\033[31mfailed:\033[0m %s\n' "${failed[*]}"
+  exit 1
+fi
+printf '\033[32mall passed\033[0m\n'
