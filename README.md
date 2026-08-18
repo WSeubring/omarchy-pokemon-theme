@@ -331,6 +331,7 @@ python3 tests/validate_schedule.py   # stability, spread, no near repeats
 python3 tests/validate_sprites.py    # every name resolves to a sprite
 python3 tests/validate_pins.py       # pin precedence and expiry
 python3 tests/validate_shiny.py      # odds, determinism, config
+python3 tests/validate_render.py     # wallpaper format, no stray temp files
 python3 tests/validate_menu.py       # menu splice, idempotency, removal
 ```
 
@@ -365,6 +366,7 @@ the specific mistake that caused exactly that.
 | `lib/ambient.py` | The `shell.background.toml` that drives the motion |
 | `lib/wallpaper.py` | ImageMagick composition |
 | `lib/artwork.py` | The creature's dominant colour, quantized and cached |
+| `lib/atomic.py` | Replace-by-rename, and the two temp-name traps |
 | `lib/shiny.py` | The odds, the daily roll and the hunt |
 | `lib/state.py` | What is written out now: day, Pokémon, and why |
 | `lib/xdg.py` | The config, state and cache directories |
@@ -378,6 +380,7 @@ the specific mistake that caused exactly that.
 | `hooks/theme-set` | Regenerates when you switch to this theme |
 | `bin/pokemon-theme-pick` | The native menu picker over all 905 |
 | `bin/pokemon-theme-menu-install` | Splices the menu rows in and out |
+| `tests/validate_render.py` | The wallpaper output and scratch-name contract |
 | `tests/run` | Runs every validator, reporting all failures |
 
 `colors.toml`, `icons.theme`, `shell.lock.toml` and `backgrounds/today.jpg` are
@@ -397,6 +400,23 @@ Artwork is fetched once per Pokémon from the
 copies the whole theme into a staging dir on every apply, and a growing cache
 would be copied along with it. With no network the palette and the ground still
 render; only the creature is missing.
+
+Switching Pokémon used to leave the previous one on screen for about three
+seconds, which read as the theme flashing the old day before settling. Three
+things were behind it, all now fixed: the wallpaper was composited through
+2400×2400 PNG intermediates (2.3s, versus 0.3s for the same thing in a single
+ImageMagick pass), `colors.toml` was written *before* that render so the theme
+directory spent seconds describing two different Pokémon, and the composite is
+now cached per Pokémon and resolution, so a revisit is a rename.
+
+Generated files are replaced by rename, never written in place. Two traps live in
+the temporary name, pulling opposite ways: `omarchy-theme-set` picks the wallpaper
+by globbing `backgrounds/*.jpg` and cycles through what it finds, so a temp file
+ending in .jpg becomes a rival candidate — the desktop can show a half-built image
+or a symlink to one already renamed away. ImageMagick, meanwhile, infers its
+output format from the extension, so a temp name ending in `.new` makes it write
+PNG bytes into a file called .jpg. Hence two helpers, and
+`tests/validate_render.py` to keep them honest.
 
 The artwork is composited as its own layer rather than baked into the ground.
 That is deliberate: animating the wallpaper means cloning `omarchy.background`
