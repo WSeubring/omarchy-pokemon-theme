@@ -70,10 +70,11 @@ def resolve(day, dex, types, requested=None):
         name, source = requested, REQUESTED
     else:
         today = read_today(day)
+        permanent = config.pinned()
         if today:
             name, source = today, TODAY
-        elif config.pinned():
-            name, source = config.pinned(), CONFIG
+        elif permanent:
+            name, source = permanent, CONFIG
 
     if name is None:
         dex_id, name, kinds = schedule.pick(day, dex, types)

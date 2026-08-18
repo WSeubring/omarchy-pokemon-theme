@@ -45,39 +45,39 @@ def pinned():
 
 def set_key(key, value):
     """Set `key` to a quoted string, preserving the rest of the file."""
-    lines = _lines()
     rendered = '%s = "%s"' % (key, value)
-    out, replaced = [], False
-    for line in lines:
-        stripped = line.strip()
-        # Replace an active assignment; leave a commented example in place so
-        # the file keeps documenting itself.
-        if not stripped.startswith("#") and stripped.startswith(key) and "=" in stripped:
-            if stripped.split("=", 1)[0].strip() == key:
-                if not replaced:
-                    out.append(rendered)
-                    replaced = True
-                continue
-        out.append(line)
+    kept, replaced = [], False
+    for line in _lines():
+        if _assigns(line, key):
+            # Replace the first active assignment and drop any duplicates. A
+            # commented example is left in place so the file keeps documenting
+            # itself.
+            if not replaced:
+                kept.append(rendered)
+                replaced = True
+            continue
+        kept.append(line)
     if not replaced:
-        out.append(rendered)
-    _write(out)
+        kept.append(rendered)
+    _write(kept)
 
 
 def clear_key(key):
     """Remove an active assignment for `key`. Returns True if one was removed."""
     lines = _lines()
-    out, removed = [], False
-    for line in lines:
-        stripped = line.strip()
-        if not stripped.startswith("#") and stripped.startswith(key) and "=" in stripped:
-            if stripped.split("=", 1)[0].strip() == key:
-                removed = True
-                continue
-        out.append(line)
+    kept = [line for line in lines if not _assigns(line, key)]
+    removed = len(kept) != len(lines)
     if removed:
-        _write(out)
+        _write(kept)
     return removed
+
+
+def _assigns(line, key):
+    """True for an uncommented `key = ...` line."""
+    stripped = line.strip()
+    if stripped.startswith("#") or "=" not in stripped:
+        return False
+    return stripped.split("=", 1)[0].strip() == key
 
 
 def _lines():
