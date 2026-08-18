@@ -252,8 +252,14 @@ Item {
     easing.type: Easing.InOutCubic
     onFinished: {
       if (root.incomingBackground) {
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        var next = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
+        // Same path, new content (a regenerated wallpaper): a plain assignment
+        // is a no-op binding-wise, so the base frame would keep its stale
+        // pixels and flash the previous image on the next transition. Bounce
+        // through "" to force a reload; the incoming frame covers the gap.
+        if (root.displayedBackground === next) root.displayedBackground = ""
+        root.displayedBackground = next
       }
       root.revealProgress = 1
     }
@@ -320,7 +326,9 @@ Item {
         source: root.imageUrl(root.displayedBackground)
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
-        cache: true
+        // Not cached: the wallpaper file is regenerated in place, and the
+        // pixmap cache would keep serving whatever the URL held the first time.
+        cache: false
         onStatusChanged: {
           if (status === Image.Ready && root.finishingTransition) {
             root.incomingBackground = ""

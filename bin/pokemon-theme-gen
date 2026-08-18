@@ -51,7 +51,16 @@ WALLPAPER_CACHE_SIZE = 120
 
 # One file only: omarchy's background chooser cycles the sorted list, so a
 # single entry is the only way to guarantee today's wallpaper is the one picked.
-BACKGROUND = os.path.join(ROOT, "backgrounds", "today.jpg")
+# The file is named after what it shows rather than a constant "today.jpg": the
+# shell's background layer caches by path, so a fixed name with changing content
+# leaves stale pixels behind and flashes the previous Pokemon on the next swap.
+BACKGROUNDS = os.path.join(ROOT, "backgrounds")
+
+
+def background_path(dex_id, is_shiny, width, height):
+    """The theme's single wallpaper file for this Pokemon at this size."""
+    return os.path.join(BACKGROUNDS, "%d%s-%dx%d.jpg"
+                        % (dex_id, "-shiny" if is_shiny else "", width, height))
 
 # Yaru ships a fixed set of accent hues; pick whichever sits closest to the
 # day's hue so the icon theme moves with the palette instead of staying put.
@@ -142,8 +151,9 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height):
 
     _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
 
-    link = atomic.scratch(BACKGROUND)
-    os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
+    background = background_path(dex_id, is_shiny, width, height)
+    link = atomic.scratch(background)
+    os.makedirs(BACKGROUNDS, exist_ok=True)
     if os.path.exists(link):
         os.remove(link)
     try:
@@ -151,8 +161,15 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height):
     except OSError:
         # Different filesystems, or a filesystem without hardlinks.
         shutil.copyfile(cached, link)
-    atomic.commit(link, BACKGROUND)
-    return BACKGROUND
+    atomic.commit(link, background)
+
+    # Back to one file: the new wallpaper lands first, then the old ones go, so
+    # the chooser never sees an empty directory or cycles between two days.
+    for name in os.listdir(BACKGROUNDS):
+        stale = os.path.join(BACKGROUNDS, name)
+        if stale != background and os.path.isfile(stale):
+            os.remove(stale)
+    return background
 
 
 def _prune(directory, keep):
@@ -292,12 +309,21 @@ def main():
         # shiny in particular would otherwise last only until the next apply.
         pins.write_today(args.date, name, choice.shiny)
 
+    # The size is resolved before the early-out because the wallpaper's name
+    # depends on it: a monitor change must read as "not current" and re-render.
+    if args.size:
+        width, height = (int(v) for v in args.size.lower().split("x"))
+    else:
+        width, height = screen_size()
+
     # The name is part of the check, not just the date: editing `pokemon` in the
     # config by hand should take effect on the next run rather than waiting for
     # tomorrow or needing --force.
     # `os.path.exists` guards a state file that outlived its wallpaper.
     if not args.force and state.matches(args.date, name, choice.shiny) \
-            and os.path.exists(BACKGROUND):
+            and (args.no_wallpaper
+                 or os.path.exists(background_path(dex_id, choice.shiny,
+                                                   width, height))):
         print("%s already current: %s; nothing to do" % (args.date, name))
         return
 
@@ -319,11 +345,7 @@ def main():
     # agrees the desktop is a mix of two themes. So the slow work happens before
     # anything the desktop reads is touched, and the files land together.
     if not args.no_wallpaper:
-        if args.size:
-            w, h = (int(v) for v in args.size.lower().split("x"))
-        else:
-            w, h = screen_size()
-        wallpaper_for(dex_id, choice.shiny, colors, w, h)
+        wallpaper_for(dex_id, choice.shiny, colors, width, height)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
                 palette.to_toml(colors, header))

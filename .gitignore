@@ -1,5 +1,6 @@
-# Rendered daily; regenerated on every run.
-backgrounds/today.jpg
+# Rendered daily; regenerated on every run. Named per Pokemon and size
+# (e.g. 131-2560x1600.jpg) so the shell never sees new content behind an old path.
+backgrounds/*.jpg
 
 # Fetched artwork lives in XDG cache, but guard against a stray local dir.
 cache/

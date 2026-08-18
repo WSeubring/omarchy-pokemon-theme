@@ -39,7 +39,7 @@ def main():
 
     # The placement name must match no image glob, or omarchy will offer it as a
     # wallpaper candidate.
-    placed = atomic.scratch("/theme/backgrounds/today.jpg")
+    placed = atomic.scratch("/theme/backgrounds/131-2560x1600.jpg")
     for pattern in IMAGE_GLOBS:
         if glob.fnmatch.fnmatch(os.path.basename(placed), pattern):
             failures.append("scratch name %r matches the image glob %r"
@@ -59,7 +59,7 @@ def main():
     sandbox = tempfile.mkdtemp(prefix="pokemon-theme-render-")
     backgrounds = os.path.join(sandbox, "backgrounds")
     os.makedirs(backgrounds)
-    target = os.path.join(backgrounds, "today.jpg")
+    target = os.path.join(backgrounds, "131-320x200.jpg")
 
     colors = palette.build({"water": "#6390F0", "ice": "#96D9D6"}, ["water", "ice"])
     # No artwork: the render still has to produce a complete file, and this keeps
@@ -93,7 +93,7 @@ def main():
         failures.append("two different Pokemon sparkle identically")
 
     leftovers = sorted(name for name in os.listdir(backgrounds)
-                       if name != "today.jpg")
+                       if name != os.path.basename(target))
     if leftovers:
         failures.append("render left files behind: %s" % ", ".join(leftovers))
 

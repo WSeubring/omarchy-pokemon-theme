@@ -395,7 +395,8 @@ the specific mistake that caused exactly that.
 | `tests/validate_render.py` | The wallpaper output and scratch-name contract |
 | `tests/run` | Runs every validator, reporting all failures |
 
-`colors.toml`, `icons.theme`, `shell.lock.toml` and `backgrounds/today.jpg` are
+`colors.toml`, `icons.theme`, `shell.lock.toml` and the single wallpaper under
+`backgrounds/` (named per Pokémon and size, e.g. `131-2560x1600.jpg`) are
 generated. The wallpaper and the lock file are gitignored — a missing lock file
 only means the lock screen rolls its own Pokémon. `colors.toml` and
 `icons.theme` are committed, since a theme without `colors.toml` generates no
