@@ -14,6 +14,9 @@ rm -f "$UNIT_DIR/omarchy-pokemon-theme.timer" "$UNIT_DIR/omarchy-pokemon-theme.s
 systemctl --user daemon-reload
 rm -f "$HOME/.config/omarchy/hooks/theme-set.d/theme-set"
 
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$REPO/bin/pokemon-theme-menu-install" --remove 2>/dev/null || true
+
 # Hand the background layer back to omarchy before removing the clone, or the
 # desktop is left with no renderer at all.
 if [[ -L $PLUGIN_DIR ]]; then

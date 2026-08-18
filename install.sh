@@ -13,9 +13,11 @@ PLUGIN_ID="${USER:-$(id -un)}.background"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 
 WITH_ANIMATION=0
+WITH_MENU=1
 for arg in "$@"; do
   case "$arg" in
   --with-animation) WITH_ANIMATION=1 ;;
+  --no-menu) WITH_MENU=0 ;;
   -h | --help)
     cat <<USAGE
 Usage: install.sh [--with-animation]
@@ -26,6 +28,8 @@ Links the theme, schedules the daily roll, and applies it.
                      subtle per-type motion behind the wallpaper. Replaces
                      omarchy's static background renderer; reversible with
                      'omarchy plugin enable omarchy.background'.
+  --no-menu          skip the omarchy menu rows. They are only visible while
+                     this theme is active, so installing them is harmless.
 USAGE
     exit 0
     ;;
@@ -39,7 +43,7 @@ done
 say() { printf '\033[32m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
-for tool in magick python3; do
+for tool in magick python3 jq; do
   command -v "$tool" >/dev/null || die "$tool is required but not on PATH"
 done
 command -v omarchy-theme-set >/dev/null || die "this is not an Omarchy system"
@@ -90,6 +94,12 @@ if (( WITH_ANIMATION )); then
   say "disabled omarchy.background in favour of the clone"
 fi
 
+if (( WITH_MENU )); then
+  # The rows carry a `when` condition, so they stay hidden unless this theme is
+  # the active one; installing them for everyone costs nothing.
+  "$REPO/bin/pokemon-theme-menu-install"
+fi
+
 say "generating today's theme"
 "$REPO/bin/pokemon-theme-gen" --force
 
@@ -102,4 +112,7 @@ Done. Today's Pokemon is live.
   bin/pokemon-theme-gen --pokemon mew    preview a specific one
   ./install.sh --with-animation          add ambient motion behind the wallpaper
   ./uninstall.sh                         remove everything this installed
+
+Or from the omarchy menu, under Pokemon (shown while this theme is active):
+  Pick for today / Pin permanently / Unpin / Roll again
 DONE
