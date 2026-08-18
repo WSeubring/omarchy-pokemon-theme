@@ -1,0 +1,15 @@
+#!/bin/bash
+# Regenerate when the user switches *to* this theme, so picking "Pokemon" from
+# the theme switcher lands on today's Pokemon rather than whatever was last
+# written.
+#
+# omarchy-theme-set calls this hook at the end of every theme change, and the
+# generator calls omarchy-theme-set -- OMARCHY_POKEMON_APPLYING is how we tell
+# our own apply apart from a user's and avoid recursing.
+
+set -euo pipefail
+
+[[ ${1:-} == "pokemon" ]] || exit 0
+[[ ${OMARCHY_POKEMON_APPLYING:-} == "1" ]] && exit 0
+
+exec "$HOME/.config/omarchy/themes/pokemon/bin/pokemon-theme-gen"

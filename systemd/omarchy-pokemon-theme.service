@@ -1,0 +1,13 @@
+[Unit]
+Description=Generate the Pokemon-of-the-day Omarchy theme
+Documentation=https://github.com/WSeubring/omarchy-pokemon-theme
+# The generator asks omarchy to re-apply the theme, which talks to the running
+# shell over IPC. Nothing breaks without it -- the files are still written and
+# every config regenerated -- but the retint waits for the next apply.
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/omarchy/themes/pokemon/bin/pokemon-theme-gen
+# The wallpaper render and a possible artwork download are the slow parts.
+TimeoutStartSec=180

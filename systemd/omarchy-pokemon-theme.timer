@@ -1,0 +1,14 @@
+[Unit]
+Description=Roll the Omarchy theme to a new Pokemon each day
+
+[Timer]
+# Just after midnight, so the desktop has changed by the time anyone looks.
+OnCalendar=*-*-* 00:05:00
+# Catch up after the machine was suspended or powered off across the boundary,
+# which is the normal case for a laptop.
+Persistent=true
+# Avoid every machine hitting the artwork host at the same second.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
