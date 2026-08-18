@@ -67,10 +67,13 @@ active one ticked:
 ```
 Pokémon…
    Pick for today     search all 905; reverts at midnight
+   Random for today   surprise me; reverts at midnight
    Pin permanently    keep one until you unpin it
-   Unpin              back to a new one each day
-   Roll again         regenerate today's theme
+   Back to daily ✓    drop any pin and use the day's own Pokémon
 ```
+
+**Back to daily** carries a ✓ when that is the current mode, so the menu shows
+which of the three you are in without opening anything.
 
 Those rows carry a `when` condition, so the whole section is hidden unless this
 theme is the active one — a row whose `when` fails is hidden, and a submenu whose
@@ -96,8 +99,9 @@ Or from the command line:
 
 ```bash
 bin/pokemon-theme-gen --pokemon gengar   # just for today
+bin/pokemon-theme-gen --random           # a random one, just for today
 bin/pokemon-theme-gen --pin lapras       # permanently
-bin/pokemon-theme-gen --unpin            # back to a new one each day
+bin/pokemon-theme-gen --unpin            # back to the daily roll
 ```
 
 `--pokemon` holds for the rest of the day and then expires, so tomorrow rolls
@@ -122,7 +126,7 @@ $ bin/pokemon-theme-gen
 
 | Source | Lifetime |
 | --- | --- |
-| `--pokemon NAME` | today, then expires |
+| `--pokemon NAME` or `--random` | today, then expires |
 | A pin set earlier today | today, then expires |
 | `pokemon` in the config | until unpinned |
 | The date's own roll | that day only |
@@ -284,10 +288,17 @@ python3 tests/validate_contrast.py   # all 905 palettes vs WCAG, and hue drift
 python3 tests/validate_schedule.py   # stability, spread, no near repeats
 python3 tests/validate_sprites.py    # every name resolves to a sprite
 python3 tests/validate_pins.py       # pin precedence and expiry
+python3 tests/validate_menu.py       # menu splice, idempotency, removal
 ```
 
 `validate_contrast.py` builds every palette and asserts each text token clears
 4.5:1 against its own background. Current worst case is 4.95:1, on Arbok.
+
+`validate_menu.py` earns its keep for a different reason: `omarchy-menu.jsonc` is
+shared with every other tool that adds rows, so one bad character does not break
+four rows, it breaks the file — and with it every other tool's entries. It also
+checks that no `when` or `checked` condition contains a double quote, which is
+the specific mistake that caused exactly that.
 
 ## Layout
 
