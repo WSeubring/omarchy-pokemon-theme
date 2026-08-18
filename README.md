@@ -1,5 +1,8 @@
 # Pokémon Theme
 
+> **Disclaimer:** vibe-coded for my own machine. Personal use, no support,
+> no guarantees - read the code before you run it.
+
 An [Omarchy](https://omarchy.org/) 4 theme that picks a different Pokémon every
 day. Its **own artwork** sets the palette, the whole desktop retints to match,
 and that artwork becomes the wallpaper. Every couple of weeks, it shows up
