@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import random
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -38,6 +39,15 @@ ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
 # copies the whole theme into a staging dir on every apply, and a growing cache
 # would be copied along with it.
 CACHE = xdg.cache("artwork")
+# Composited wallpapers, keyed by what they are made of. Rendering one takes a
+# couple of seconds at desktop resolution, which is long enough to see: the menu
+# closes, the previous Pokemon is still on screen, and only then does the theme
+# change. Second and later visits to a Pokemon are a rename instead.
+WALLPAPERS = xdg.cache("wallpapers")
+# 905 Pokemon times however many resolutions have been asked for would grow
+# without limit, at ~170KB each. Keeping the most recent few months of them is
+# plenty to make revisits instant.
+WALLPAPER_CACHE_SIZE = 120
 
 # One file only: omarchy's background chooser cycles the sorted list, so a
 # single entry is the only way to guarantee today's wallpaper is the one picked.
@@ -109,6 +119,56 @@ def artwork_for(dex_id, is_shiny=False):
         fh.write(data)
     os.replace(tmp, path)
     return path
+
+
+def wallpaper_for(dex_id, is_shiny, colors, width, height):
+    """Put the wallpaper for this Pokemon in place, rendering it only if new.
+
+    The composition is a pure function of the artwork and the palette, and both
+    follow from the Pokemon, so the file for a given Pokemon and size never needs
+    building twice. Hardlinked into the theme rather than copied: `omarchy-theme-set`
+    copies the theme into a staging directory anyway, so nothing downstream shares
+    the inode.
+    """
+    cached = os.path.join(WALLPAPERS, "%d%s-%dx%d.jpg"
+                          % (dex_id, "-shiny" if is_shiny else "", width, height))
+    if os.path.exists(cached) and os.path.getsize(cached) > 0:
+        os.utime(cached, None)
+    else:
+        os.makedirs(WALLPAPERS, exist_ok=True)
+        wallpaper.render(artwork_for(dex_id, is_shiny), colors, cached,
+                         width, height)
+
+    _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
+
+    link = atomic.scratch(BACKGROUND)
+    os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
+    if os.path.exists(link):
+        os.remove(link)
+    try:
+        os.link(cached, link)
+    except OSError:
+        # Different filesystems, or a filesystem without hardlinks.
+        shutil.copyfile(cached, link)
+    atomic.commit(link, BACKGROUND)
+    return BACKGROUND
+
+
+def _prune(directory, keep):
+    """Drop all but the `keep` most recently used files in `directory`."""
+    try:
+        entries = [os.path.join(directory, name) for name in os.listdir(directory)]
+    except OSError:
+        return
+    files = [path for path in entries if os.path.isfile(path)]
+    if len(files) <= keep:
+        return
+    files.sort(key=os.path.getmtime, reverse=True)
+    for path in files[keep:]:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def screen_size(fallback=(2560, 1600)):
@@ -263,18 +323,15 @@ def main():
              % (args.date, dex_id, name, " shiny" if choice.shiny else "",
                 "/".join(kinds), "artwork" if accent_source else "type")
 
-    # The wallpaper takes seconds to composite, and until every file agrees the
-    # theme directory describes two different Pokemon -- which is exactly what a
-    # switch looked like: the previous one stayed on screen, then everything
-    # jumped. So the slow work happens before anything the desktop reads is
-    # touched, and the files land together.
+    # The wallpaper takes a couple of seconds to composite, and until every file
+    # agrees the desktop is a mix of two themes. So the slow work happens before
+    # anything the desktop reads is touched, and the files land together.
     if not args.no_wallpaper:
         if args.size:
             w, h = (int(v) for v in args.size.lower().split("x"))
         else:
             w, h = screen_size()
-        os.makedirs(os.path.dirname(BACKGROUND), exist_ok=True)
-        wallpaper.render(art, colors, BACKGROUND, w, h)
+        wallpaper_for(dex_id, choice.shiny, colors, w, h)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
                 palette.to_toml(colors, header))
