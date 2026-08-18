@@ -99,6 +99,16 @@ Item {
   readonly property bool effectsRunning:
     effectsEnabled && effectIntensity > 0 && !desktopCovered && !batteryPaused
 
+  // Effects.js is tuned for the lock screen's card. A monitor is one to two
+  // orders of magnitude more pixels, so the same counts and sizes read as a few
+  // specks of dust rather than as weather. These two multipliers are the whole
+  // desktop adjustment: a few more shapes, each a little bigger. Deliberately
+  // modest -- the motion should be noticeable on an empty workspace and never
+  // something you look around. Set them to 1.0 for the lock screen's own
+  // numbers, or higher for more.
+  readonly property real countScale: numberToken("effect-count-scale", 1.8)
+  readonly property real sizeScale: numberToken("effect-size-scale", 1.4)
+
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
@@ -369,7 +379,8 @@ Item {
           kind: root.secondaryKind
           variant: root.effectVariant
           tint: root.secondaryTint
-          intensity: root.effectIntensity * root.dualStrength
+          intensity: root.effectIntensity * root.dualStrength * root.countScale
+          sizeScale: root.sizeScale
         }
       }
 
@@ -380,7 +391,8 @@ Item {
           kind: root.primaryKind
           variant: root.effectVariant
           tint: root.effectTint
-          intensity: root.effectIntensity
+          intensity: root.effectIntensity * root.countScale
+          sizeScale: root.sizeScale
         }
       }
 

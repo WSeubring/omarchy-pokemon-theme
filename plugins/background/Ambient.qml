@@ -16,8 +16,19 @@ Item {
   property int variant: 1
   property color tint: "#ffffff"
   property real intensity: 1.0
+  // A desktop is a lot more pixels than the lock card these numbers were tuned
+  // on, so the shapes come out too small there. 1.0 is the tuned size; the
+  // background plugin passes a little more. Spread scales with it, so a shape
+  // wanders in proportion to how big it is.
+  property real sizeScale: 1.0
 
-  readonly property var config: Effects.config(kind, variant)
+  readonly property var config: {
+    var c = Effects.config(kind, variant)
+    if (!c) return null
+    c.size *= root.sizeScale
+    c.spread *= root.sizeScale
+    return c
+  }
   readonly property int count: config ? Math.max(1, Math.round(config.count * intensity)) : 0
 
   clip: true
