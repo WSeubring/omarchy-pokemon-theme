@@ -16,6 +16,7 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-pokemon-theme/current"
 mode="today"
 case "${1:-}" in
 --pin) mode="pin" ;;
+--random) mode="random" ;;
 --today | "") mode="today" ;;
 -h | --help)
   cat <<USAGE
@@ -24,6 +25,7 @@ Usage: pokemon-theme-pick [--today|--pin]
 Opens the omarchy menu to pick a Pokemon.
 
   --today   use it until midnight (default)
+  --random  skip the list, take a random one until midnight
   --pin     pin it permanently in the user config
 USAGE
   exit 0
@@ -33,6 +35,23 @@ USAGE
   exit 1
   ;;
 esac
+
+# Reports the result, since a menu row that runs and says nothing looks broken.
+# The generator prints "<date>  #N <name> (<types>)  accent <hex>  [<source>]".
+announce() {
+  local line="$1" name types
+  name=$(sed -n 's/.*#[0-9]* \([a-z0-9-]*\) (.*/\1/p' <<<"$line")
+  types=$(sed -n 's/.*(\([a-z/ ]*\)).*/\1/p' <<<"$line")
+  [[ -n $name ]] || return 0
+  omarchy-notification-send -t 4000 \
+    "${name^} — ${types:-?}" "Theme updated" 2>/dev/null || true
+}
+
+# --random needs no list, so it does not need the menu to be available at all.
+if [[ $mode == random ]]; then
+  announce "$("$GEN" --random | tail -1)"
+  exit 0
+fi
 
 command -v omarchy-menu-select >/dev/null ||
   { echo "omarchy-menu-select not found; needs Omarchy 4" >&2; exit 1; }
@@ -62,7 +81,7 @@ name=$(printf '%s' "$selection" | cut -f1)
 [[ -n $name ]] || exit 0
 
 if [[ $mode == pin ]]; then
-  "$GEN" --pin "$name"
+  announce "$("$GEN" --pin "$name" | tail -1)"
 else
-  "$GEN" --pokemon "$name"
+  announce "$("$GEN" --pokemon "$name" | tail -1)"
 fi

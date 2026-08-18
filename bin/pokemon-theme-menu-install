@@ -17,6 +17,15 @@ END="  // <<< pokemon theme <<<"
 # The theme's slug, written by omarchy-theme-set. Cheaper and more exact than
 # parsing `omarchy theme current`, which prints the display name.
 ACTIVE='[[ $(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null) == pokemon ]]'
+# The generator records why it chose what it chose as the third field of its
+# state file, so "is this the plain daily roll" is one read rather than a
+# reconstruction from the override file and the config together.
+#
+# Deliberately free of double quotes: these conditions are embedded in a JSON
+# string, and a quote here silently invalidates the whole menu file -- every
+# other tool's rows included, not just these. `roll$` anchors to the end of the
+# line, where the slug is.
+ON_DAILY='grep -qs roll$ ~/.local/state/omarchy-pokemon-theme/current'
 
 # Nerd Font glyphs are written as codepoint escapes rather than literal bytes.
 # Private-use characters are invisible in an editor and easy to lose to a copy,
@@ -25,8 +34,8 @@ ACTIVE='[[ $(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null) == pokem
 ICON_DEX=$(printf '\uf1b0')    # paw
 ICON_PICK=$(printf '\uf002')   # magnifying glass
 ICON_PIN=$(printf '\uf08d')    # thumb tack
-ICON_UNPIN=$(printf '\uf00d')  # times
-ICON_ROLL=$(printf '\uf021')   # refresh
+ICON_RANDOM=$(printf '\uf074') # shuffle
+ICON_DAILY=$(printf '\uf073')  # calendar
 
 PICK="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)/pokemon-theme-pick"
 GEN="$(dirname "$PICK")/pokemon-theme-gen"
@@ -63,9 +72,9 @@ block=$(cat <<BLOCK
 $BEGIN
   "pokemon": {"icon":"$ICON_DEX","label":"Pokémon","description":"theme of the day","aliases":["pokemon","pokedex","pkmn"],"when":"$ACTIVE"},
   "pokemon.pick": {"icon":"$ICON_PICK","label":"Pick for today","description":"search all 905; reverts at midnight","action":"$PICK --today","when":"$ACTIVE"},
+  "pokemon.random": {"icon":"$ICON_RANDOM","label":"Random for today","description":"surprise me; reverts at midnight","action":"$PICK --random","when":"$ACTIVE"},
   "pokemon.pin": {"icon":"$ICON_PIN","label":"Pin permanently","description":"keep one until you unpin it","action":"$PICK --pin","when":"$ACTIVE"},
-  "pokemon.unpin": {"icon":"$ICON_UNPIN","label":"Unpin","description":"back to a new one each day","action":"$GEN --unpin","when":"$ACTIVE"},
-  "pokemon.reroll": {"icon":"$ICON_ROLL","label":"Roll again","description":"regenerate today's theme","action":"$GEN --force","when":"$ACTIVE"}
+  "pokemon.daily": {"icon":"$ICON_DAILY","label":"Back to daily","description":"drop any pin and use the day's own Pokémon","action":"$GEN --unpin","when":"$ACTIVE","checked":"$ON_DAILY"}
 $END
 BLOCK
 )
@@ -73,6 +82,8 @@ BLOCK
 # Insert just before the closing brace of the JSONC object. A preceding row needs
 # a trailing comma; the last line before "}" may or may not already have one.
 python3 - "$stripped" "$MENU" "$block" <<'PY'
+import json
+import re
 import sys
 
 src, dest, block = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -81,17 +92,43 @@ lines = open(src).read().rstrip("\n").split("\n")
 # Find the final closing brace of the object.
 close = max(i for i, line in enumerate(lines) if line.strip() == "}")
 
-# Whatever real entry precedes it must end in a comma now that rows follow it.
+# Whatever real entry precedes the brace needs a trailing comma now that rows
+# follow it -- unless it *is* the opening brace, in which case adding one yields
+# "{," and an unparseable file. That is the empty-file case.
 for i in range(close - 1, -1, -1):
     stripped = lines[i].strip()
     if not stripped or stripped.startswith("//"):
         continue
-    if not stripped.endswith(","):
-        lines[i] = lines[i] + ","
+    if stripped.endswith(("{", "[", ",")):
+        break
+    lines[i] = lines[i] + ","
     break
 
 out = lines[:close] + block.split("\n") + lines[close:]
-open(dest, "w").write("\n".join(out) + "\n")
+text = "\n".join(out) + "\n"
+
+
+def strip_jsonc(raw):
+    kept = [l for l in raw.split("\n") if not l.lstrip().startswith("//")]
+    return re.sub(r",(\s*[}\]])", r"\1", "\n".join(kept))
+
+
+# Validate before writing. This file is shared with every other tool that adds
+# menu rows, and one bad character takes all of them down together -- a stray
+# double quote inside a `checked` condition did exactly that during development,
+# invalidating all 362 entries. Refusing to write beats handing the shell a menu
+# it cannot parse.
+try:
+    parsed = json.loads(strip_jsonc(text))
+except json.JSONDecodeError as exc:
+    sys.exit("refusing to write: result would not be valid JSONC (%s).\n"
+             "%s is unchanged." % (exc, dest))
+
+missing = [k for k in ("pokemon", "pokemon.pick") if k not in parsed]
+if missing:
+    sys.exit("refusing to write: rows missing after splice: %s" % ", ".join(missing))
+
+open(dest, "w").write(text)
 PY
 
 echo "Added the Pokemon rows to $MENU"
