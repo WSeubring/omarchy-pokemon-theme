@@ -6,6 +6,7 @@ mode = "dark"
 accent = "#7cc650"
 selection = "#33402d"
 muted = "#485940"
+hyprland_active_border = "rgba(7cc650ee)"
 
 background = "#192115"
 dark_background = "#12180f"
