@@ -19,19 +19,24 @@ for arg in "$@"; do
   --with-animation) WITH_ANIMATION=1 ;;
   --no-animation) WITH_ANIMATION=0 ;;
   --no-menu) WITH_MENU=0 ;;
+  --defaults) ;;
   -h | --help)
     cat <<USAGE
-Usage: install.sh [--no-animation] [--no-menu]
+Usage: install.sh [--no-animation] [--no-menu] [--defaults]
 
 Links the theme, schedules the daily roll, applies it, and installs the
 ambient background plugin, which adds subtle per-type motion behind the
 wallpaper. The plugin replaces omarchy's static background renderer;
 reversible with 'omarchy plugin enable omarchy.background'.
 
+Run from a terminal with no options, it asks about the two extras below.
+Any option (or a non-interactive run) skips the questions.
+
   --no-animation     skip the ambient background plugin and keep the stock
                      static background renderer.
   --no-menu          skip the omarchy menu rows. They are only visible while
                      this theme is active, so installing them is harmless.
+  --defaults         take the defaults (both extras on) without asking.
 USAGE
     exit 0
     ;;
@@ -44,6 +49,27 @@ done
 
 say() { printf '\033[32m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[31mError:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# "Yes" is 0 so the answer reads like an exit code. Defaults to yes on a bare
+# enter, and to yes wholesale when there is no terminal to ask.
+ask() {
+  if command -v gum >/dev/null; then
+    gum confirm --default=yes "$1"
+  else
+    local reply
+    read -r -p "$1 [Y/n] " reply
+    [[ ! $reply =~ ^[Nn] ]]
+  fi
+}
+
+# Interactive only on a bare run from a terminal: any option means the caller
+# already decided, and a curl-pipe or scripted run has no one to ask.
+if (( $# == 0 )) && [[ -t 0 && -t 2 ]]; then
+  ask "Ambient motion behind the wallpaper? (replaces the static background renderer, reversible)" \
+    && WITH_ANIMATION=1 || WITH_ANIMATION=0
+  ask "Pokemon rows in the omarchy menu? (pick / random / pin; hidden unless this theme is active)" \
+    && WITH_MENU=1 || WITH_MENU=0
+fi
 
 for tool in magick python3 jq; do
   command -v "$tool" >/dev/null || die "$tool is required but not on PATH"
