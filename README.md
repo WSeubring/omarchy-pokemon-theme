@@ -88,6 +88,53 @@ instead of merging keys — a file with only `pokemon-name` in it would drop the
 rest of the lock screen's palette. The two border tokens stay as literal
 `hyprland.*` references so they keep tracking the Hyprland gradient.
 
+## Ambient motion (optional)
+
+Off by default. With it on, the day's types drive subtle motion behind the
+wallpaper -- embers for a fire type, drifting flakes for an ice type, wisps for a
+ghost -- reusing the eighteen effects from
+[omarchy-lock-pokemon](https://github.com/WSeubring/omarchy-lock-pokemon).
+
+```bash
+./install.sh --with-animation
+```
+
+This part is **not a theme**, and cannot be: motion needs a Quickshell *plugin*,
+which lives in `~/.config/omarchy/plugins/` rather than in a theme directory. So
+the repo ships both halves. `omarchy theme install` alone gives the full static
+theme and never touches the shell; the plugin is a deliberate second step.
+
+The plugin is a clone of `omarchy.background` with an ambient layer added --
+the wallpaper images, theme transition and reveal mask are upstream code
+untouched. Installing it disables the stock renderer; `omarchy plugin enable
+omarchy.background` hands the desktop back, and `./uninstall.sh` does that for
+you.
+
+Whether the plugin is installed *is* the on/off switch, so there is no extra
+config file to drift: the theme writes `effects = "show"` when it finds an
+ambient plugin and `"hide"` when it does not.
+
+**It pauses rather than burning battery all day.** A lock screen animates for
+five seconds; a desktop would animate for eight hours. So motion stops when the
+focused workspace has any windows -- a wallpaper nobody can see is not worth
+drawing -- and when the battery is discharging below 30%. Paused means the
+`Loader`s deactivate and the shapes leave the scene graph, not that they animate
+behind a zero opacity.
+
+To keep the plugin but stop the motion, or to change any of it, override per key
+in `~/.config/omarchy/shell.toml`:
+
+```toml
+[background]
+effects            = "hide"   # motion off, plugin still installed
+effect-intensity   = 1.0      # default is 0.55
+pause-on-battery   = "never"
+pause-when-covered = "false"
+```
+
+See [plugins/background/README.md](plugins/background/README.md) for every token
+and the `debug` switch.
+
 ## How the palette is built
 
 The day's Pokémon supplies **hue and nothing else**. Lightness and chroma come
@@ -117,6 +164,22 @@ Everything happens in [OKLCh](https://bottosson.github.io/posts/oklab/), where
 lightness is perceptually uniform, so "pin L" actually means "keep the same
 apparent brightness" instead of "keep the same number".
 
+### Dual types
+
+Both types are used, in three places, and a dual type is meant to be noticeable
+without being busy:
+
+| | Primary type | Second type |
+| --- | --- | --- |
+| Palette | accent, backgrounds, foregrounds | mid-greys (`lighter_background`, `selection`, `muted`) |
+| ANSI | anchors nearer the primary hue | anchors nearer its own hue |
+| Ambient motion | front layer, full intensity | layer behind it, half intensity, own tint |
+| Lock screen | handled by the lock plugin's own dual-type gradient | |
+
+So a Gengar day is a violet desktop with magenta-tinted chrome, and wisps
+drifting in front of creeping smog. A single-type day leaves the second slot
+empty and everything falls back to the primary hue.
+
 ## Tests
 
 The generator will happily produce an unreadable theme if the maths is wrong on
@@ -141,10 +204,13 @@ python3 tests/validate_sprites.py    # every name resolves to a sprite
 | `lib/palette.py` | The ladder, the ANSI anchors, and `colors.toml` output |
 | `lib/schedule.py` | Date → Pokémon, deterministic and stateless |
 | `lib/lockscreen.py` | The `shell.lock.toml` that pins the lock screen |
+| `lib/ambient.py` | The `shell.background.toml` that drives the motion |
 | `lib/wallpaper.py` | ImageMagick composition |
 | `data/dex.json` | National dex order, so a name gives an artwork id offline |
 | `data/types.json` | Name → types, from PokéAPI via omarchy-lock-pokemon |
 | `data/type-colors.json` | The eighteen community type colours |
+| `data/type-effects.json` | Type → ambient effect name and traits |
+| `plugins/background/` | The optional ambient background plugin |
 | `systemd/` | The daily timer and its service |
 | `hooks/theme-set` | Regenerates when you switch to this theme |
 
