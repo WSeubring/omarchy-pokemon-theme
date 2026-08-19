@@ -131,6 +131,18 @@ fi
 say "generating today's theme"
 "$REPO/bin/pokemon-theme-gen" --force
 
+# The generation above already wrote pokemon.css into any Vesktop/Vencord it
+# found and enabled it in the client's settings. A client that is open right
+# now rewrites its settings on quit, so the enable lands on its next launch.
+for dir in "$HOME/.config/vesktop" \
+  "$HOME/.var/app/dev.vencord.Vesktop/config/vesktop" \
+  "$HOME/.config/Vencord"; do
+  if [[ -d $dir ]]; then
+    say "Discord client found: themed. If it is open now, restart it once."
+    break
+  fi
+done
+
 cat <<'DONE'
 
 Done. Today's Pokemon is live.

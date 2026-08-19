@@ -28,6 +28,7 @@ import palette  # noqa: E402
 import pins  # noqa: E402
 import shiny  # noqa: E402
 import state  # noqa: E402
+import vesktop  # noqa: E402
 import wallpaper  # noqa: E402
 import xdg  # noqa: E402
 from oklch import hex_to_oklch  # noqa: E402
@@ -331,6 +332,13 @@ def main():
                 palette.to_toml(colors, header))
     atomic.text(os.path.join(ROOT, "icons.theme"),
                 icon_theme(colors["accent"]) + "\n")
+
+    # Vesktop/Vencord retint. Written straight into the client's themes
+    # directory rather than into the theme: omarchy-theme-set knows nothing
+    # about Discord, and Vencord hot-reloads a changed theme file on its own.
+    # No client installed means no files, and nothing to clean up later.
+    for path in vesktop.targets():
+        atomic.text(path, vesktop.css(colors, header))
 
     # Pin omarchy-lock-pokemon to the same Pokemon, so unlocking shows the one
     # already on the desktop. A user who prefers a random lock sets
