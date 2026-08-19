@@ -26,6 +26,7 @@ palette carries all the way out to the edges:
 | Shell & tools | the Omarchy bar, btop, gum, chromium |
 | Agents | claude, pi |
 | System | hyprland borders, keyboard backlight, icon theme |
+| Chat | Vesktop / Vencord (Discord), if installed |
 
 The colours come from the creature's own artwork: Charizard's orange belly,
 Lapras's specific blue, Umbreon's yellow rings. Dual types show up too, as a
@@ -58,6 +59,18 @@ skip the questions. Everything is reversible with `./uninstall.sh`.
 
 The theme rolls itself at midnight, catches up after sleep, and regenerates
 whenever you switch to it, so you never land on a stale day.
+
+### Discord (Vesktop / Vencord)
+
+Omarchy doesn't know about Discord, so the generator handles it directly: if
+it finds a Vesktop (native or Flatpak) or Vencord install, it writes a
+`pokemon.css` theme into the client's themes folder on every roll and enables
+it in the client's settings. Vencord hot-reloads the file, so the day's
+palette lands live; nothing to copy or toggle by hand, and no files are
+written if no client is installed. One caveat: a client that is *running*
+during the very first generation saves its own settings on quit, so the
+enable takes effect on its next launch (or toggle it once under
+**Settings > Vencord > Themes**).
 
 ## Picking a Pokémon
 
@@ -135,4 +148,6 @@ the repository layout: [docs/internals.md](docs/internals.md).
 
 Artwork and type data from [PokéAPI](https://pokeapi.co/). Type colours are the
 long-standing community palette. Theming machinery from
-[Omarchy](https://omarchy.org/). MIT licensed.
+[Omarchy](https://omarchy.org/). Discord token mapping vendored from
+[base16-discord](https://github.com/imbypass/base16-Discord) (MIT).
+MIT licensed.
