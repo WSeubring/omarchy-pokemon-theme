@@ -47,15 +47,30 @@ omarchy theme install https://github.com/WSeubring/omarchy-pokemon-theme
 ~/.config/omarchy/themes/pokemon/install.sh
 ```
 
-The installer asks about the two extras (both default to yes):
+The installer opens a setup page in your browser: the real rendered wallpaper
+and a live terminal mockup, repainted as you choose — pick a colour scheme and
+intensity by looking at the actual desktop they produce, try any of the 905 as
+a preview, and pin one as your starter if it clicks. No browser available, and
+it falls back to a full-terminal wizard, then to plain prompts; all three ask
+the same things. Re-running it is safe: it opens on whatever is already
+installed and configured, and finishes with a checklist of what is in place.
 
-- **Ambient motion**: the day's types drive subtle motion behind the wallpaper.
-  Embers for a fire type, drifting flakes for an ice type, wisps for a ghost.
-- **Menu rows**: a Pokémon section in the omarchy menu, shown only while this
-  theme is active.
+It also offers the extras:
 
-Flags (`--no-animation`, `--no-menu`, `--defaults`) or a non-interactive run
-skip the questions. Everything is reversible with `./uninstall.sh`.
+- **Animated particles**: the day's types drive subtle motion behind the
+  wallpaper. Embers for a fire type, drifting flakes for ice, wisps for a
+  ghost.
+- **Pokémon picker**: a Pokémon section in the omarchy menu, shown only while
+  this theme is active.
+- **Lock screen**: the day's creature on the lock card, via the companion
+  [omarchy-lock-pokemon](https://github.com/WSeubring/omarchy-lock-pokemon).
+- **Terminal greeting** (off by default): a Pokédex entry in new terminals,
+  via [pokedex-greeting](https://github.com/WSeubring/pokedex-greeting).
+
+Flags (`--mode=…`, `--intensity=…`, `--pokemon=… [--pin]`, `--no-animation`,
+`--no-menu`, `--no-lock`, `--no-greeting`, `--defaults`) or a non-interactive
+run skip the questions. What this repo installed, `./uninstall.sh` removes;
+the two companions are their own repos and uninstall separately.
 
 The theme rolls itself at midnight, catches up after sleep, and regenerates
 whenever you switch to it, so you never land on a stale day.
@@ -112,13 +127,37 @@ Rerolling is how you hunt one: `--random`, or "Random for today" in the menu.
 A shiny that turns up sticks for the rest of the day. `--shiny` forces one,
 `--no-shiny` forces it back.
 
+## Light mode
+
+The palette has a light counterpart — not the dark ladder flipped, but its own
+pastel ground that still carries the day's hue, solved so every one of the 905
+days stays readable. Four ways to run it, in
+`~/.config/omarchy-pokemon-theme/config.toml`:
+
+```toml
+mode = "dark"      # the default
+mode = "light"
+mode = "auto"      # light 08:00-20:00, dark at night (own flip times below)
+mode = "pokemon"   # the day's creature decides: bright ones (Pikachu, Mew)
+                   # get the light theme, everything else stays dark
+```
+
+Auto mode flips the whole desktop at the boundaries — wallpaper, terminals,
+Discord, Claude Code, everything — via a systemd timer, and catches up after
+sleep. One-off override: `bin/pokemon-theme-gen --mode light`.
+
 ## Configuration
 
 Yours to edit, in `~/.config/omarchy-pokemon-theme/config.toml`:
 
 ```toml
-pokemon = "lapras"   # pin one permanently; remove the line (or --unpin) to stop
-shiny-odds = 14      # 1 in N per day; 4096 for canonical full odds
+pokemon = "lapras"    # pin one permanently; remove the line (or --unpin) to stop
+shiny-odds = 14       # 1 in N per day; 4096 for canonical full odds
+mode = "auto"         # dark / light / auto / pokemon, see above
+light-from = "08:00"  # auto mode: when the light theme takes over
+dark-from = "20:00"   # auto mode: when the dark theme returns
+intensity = 1.0       # colour intensity, 0.4 (near-mono) to 1.6 (saturated);
+                      # chroma only, so readability is untouched
 ```
 
 Per-key overrides in `~/.config/omarchy/shell.toml` win over anything the
