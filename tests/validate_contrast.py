@@ -27,9 +27,15 @@ from oklch import _to_linear, hex_to_oklch, oklch_to_hex  # noqa: E402
 # design and only has to clear the 3.0 large-text/UI floor.
 MIN_TEXT = 4.5
 MIN_DIM = 2.9
+# The light accent trades down to a 3.0 floor by design (see palette.py's
+# ACCENT_*_LIGHT comment): at 4.5 every yellow and orange accent goes olive.
+# It is UI chrome, not body text, and 3.0 still beats every stock light theme.
+MIN_ACCENT_LIGHT = 3.0
 # ANSI hues may drift toward the day's hue for cohesion, but red must still look
 # red in a diff. Anything past this and the pull factor has gone too far.
 MAX_HUE_DRIFT = 30.0
+# The intensity knob's whole range must hold contrast, or it is not a safe knob.
+INTENSITIES = (palette.INTENSITY_MIN, 1.0, palette.INTENSITY_MAX)
 
 # Corners of the space an extracted artwork colour can land in: near-black
 # outline, mid saturated body, blown-out highlight, and flat grey.
@@ -55,16 +61,20 @@ def contrast(a, b):
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 
-def check(label, colors, kinds, failures, worst):
+def check(label, colors, kinds, failures, worst, mode="dark"):
     bg = colors["background"]
 
     for token in TEXT_TOKENS:
+        floor = MIN_TEXT
+        if token == "accent" and mode == "light":
+            floor = MIN_ACCENT_LIGHT
         ratio = contrast(colors[token], bg)
-        if token not in worst or ratio < worst[token][0]:
-            worst[token] = (ratio, label)
-        if ratio < MIN_TEXT:
+        key = "%s/%s" % (mode, token)
+        if key not in worst or ratio < worst[key][0]:
+            worst[key] = (ratio, label)
+        if ratio < floor:
             failures.append("%s/%s contrast %.2f < %.2f"
-                            % (label, token, ratio, MIN_TEXT))
+                            % (label, token, ratio, floor))
 
     dim = contrast(colors["dark_foreground"], bg)
     if dim < MIN_DIM:
@@ -105,24 +115,35 @@ def main():
     failures = []
     worst = {}
 
-    for name, kinds in types.items():
-        check(name, palette.build(type_colors, kinds), kinds, failures, worst)
-    print("checked %d type palettes" % len(types))
+    for mode in ("dark", "light"):
+        for intensity in INTENSITIES:
+            tag = "%s x%.1f" % (mode, intensity)
+            for name, kinds in types.items():
+                check("%s %s" % (name, tag),
+                      palette.build(type_colors, kinds,
+                                    mode=mode, intensity=intensity),
+                      kinds, failures, worst, mode)
+            print("checked %d type palettes (%s)" % (len(types), tag))
 
-    swept = 0
-    for hue in range(0, 360, 2):
-        for L, C in SWEEP_LC:
-            source = oklch_to_hex(L, C, float(hue))
-            for kinds in SWEEP_KINDS:
-                label = "artwork %s L%.2f C%.2f" % (source, L, C)
-                check(label, palette.build(type_colors, kinds, source), kinds,
-                      failures, worst)
-                swept += 1
-    print("checked %d artwork-derived palettes" % swept)
+        swept = 0
+        for hue in range(0, 360, 2):
+            for L, C in SWEEP_LC:
+                source = oklch_to_hex(L, C, float(hue))
+                for kinds in SWEEP_KINDS:
+                    for intensity in INTENSITIES:
+                        label = "artwork %s L%.2f C%.2f %s x%.1f" \
+                                % (source, L, C, mode, intensity)
+                        check(label,
+                              palette.build(type_colors, kinds, source,
+                                            mode=mode, intensity=intensity),
+                              kinds, failures, worst, mode)
+                        swept += 1
+        print("checked %d artwork-derived palettes (%s)" % (swept, mode))
 
-    for token in TEXT_TOKENS:
-        ratio, who = worst[token]
-        print("  %-20s worst %5.2f  (%s)" % (token, ratio, who))
+    for mode in ("dark", "light"):
+        for token in TEXT_TOKENS:
+            ratio, who = worst["%s/%s" % (mode, token)]
+            print("  %s %-20s worst %5.2f  (%s)" % (mode, token, ratio, who))
 
     if failures:
         print("\n%d FAILURE(S):" % len(failures))
