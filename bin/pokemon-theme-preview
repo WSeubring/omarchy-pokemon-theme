@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Print truecolor palette previews in the terminal, for the installer.
+
+Renders what a choice actually does before it is made: a handful of
+colour-diverse Pokemon as one-line palette strips, per mode or per intensity,
+or a single requested Pokemon across both modes.
+
+Offline on purpose -- the accent comes from the type colour here, not the
+artwork, so the installer can preview before anything is downloaded. The
+generated theme then improves on what was shown, never the reverse.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+
+import palette  # noqa: E402
+from preview import strip  # noqa: E402
+
+# Colour-diverse and instantly recognisable: yellow, orange, green, purple.
+SAMPLES = ("pikachu", "charizard", "venusaur", "gengar")
+
+
+def rows(kinds_by_name, type_colors, names, builds):
+    """`builds`: [(label, build_kwargs)]. One line per Pokemon per build."""
+    width = max(len(n) for n in names) + 2
+    for name in names:
+        kinds = kinds_by_name[name]
+        cells = []
+        for label, kwargs in builds:
+            colors = palette.build(type_colors, kinds, **kwargs)
+            cells.append(strip(colors))
+        print("  %-*s%s" % (width, name, "  ".join(cells)))
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--choice", choices=("mode", "intensity"),
+                    help="preview the sample set across this choice's options")
+    ap.add_argument("--pokemon", metavar="NAME",
+                    help="preview one Pokemon in both modes instead")
+    ap.add_argument("--intensity", type=float, default=1.0,
+                    help="intensity to preview at (default 1.0)")
+    args = ap.parse_args()
+
+    with open(os.path.join(ROOT, "data", "types.json")) as fh:
+        kinds_by_name = json.load(fh)
+    with open(os.path.join(ROOT, "data", "type-colors.json")) as fh:
+        type_colors = json.load(fh)
+
+    if args.pokemon:
+        name = args.pokemon.strip().lower()
+        if name not in kinds_by_name:
+            sys.exit("unknown pokemon: %s" % name)
+        print()
+        print("  %s (%s), dark then light:"
+              % (name, "/".join(kinds_by_name[name])))
+        print()
+        rows(kinds_by_name, type_colors, [name],
+             [("dark", {"mode": "dark", "intensity": args.intensity}),
+              ("light", {"mode": "light", "intensity": args.intensity})])
+        print()
+        return
+
+    if args.choice == "mode":
+        print()
+        print("  %-11s%-42s%s" % ("", "dark", "light"))
+        rows(kinds_by_name, type_colors, list(SAMPLES),
+             [("dark", {"mode": "dark", "intensity": args.intensity}),
+              ("light", {"mode": "light", "intensity": args.intensity})])
+        print()
+        print("  auto follows the clock (light 08:00-20:00); pokemon lets the")
+        print("  day's creature pick: bright ones (like pikachu) go light.")
+        print()
+    elif args.choice == "intensity":
+        print()
+        print("  %-11s%-42s%-42s%s" % ("", "muted 0.7", "normal 1.0",
+                                       "vivid 1.3"))
+        rows(kinds_by_name, type_colors, list(SAMPLES),
+             [("0.7", {"intensity": 0.7}),
+              ("1.0", {"intensity": 1.0}),
+              ("1.3", {"intensity": 1.3})])
+        print()
+    else:
+        sys.exit("pass --choice mode|intensity or --pokemon NAME")
+
+
+if __name__ == "__main__":
+    main()

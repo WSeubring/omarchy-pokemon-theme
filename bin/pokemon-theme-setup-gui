@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Browser-based setup widget: real rendered wallpapers, live palettes.
+
+Serves a single local page (data/setup.html) that previews the theme exactly
+as it will be generated -- wallpapers through wallpaper.render, palettes
+through palette.build with the creature's artwork accent -- while the user
+picks mode, intensity, extras and optionally a starter Pokemon. The page
+posts the answers back; they land on stdout as shell assignments for
+install.sh to eval.
+
+Stdlib + the theme's own dependencies only. Exit codes match the TUI wizard:
+0 answered, 1 cancelled, 2 could not start or open a browser.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import threading
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+
+import artwork  # noqa: E402
+import palette  # noqa: E402
+import wallpaper  # noqa: E402
+import xdg  # noqa: E402
+
+SAMPLES = ("pikachu", "charizard", "venusaur", "gengar", "lapras")
+PREVIEWS = xdg.cache("setup-previews")
+PREVIEW_W, PREVIEW_H = 1120, 630
+
+with open(os.path.join(ROOT, "data", "types.json")) as fh:
+    KINDS = json.load(fh)
+with open(os.path.join(ROOT, "data", "dex.json")) as fh:
+    DEX = json.load(fh)
+with open(os.path.join(ROOT, "data", "type-colors.json")) as fh:
+    TYPE_COLORS = json.load(fh)
+DEX_ID = {name: i + 1 for i, name in enumerate(DEX)}
+
+_render_lock = threading.Lock()
+_done = threading.Event()
+_answers = {}
+
+
+def accent_for(name):
+    """The creature's artwork accent, downloading the artwork if needed.
+    None (type-colour fallback) when offline."""
+    art = artwork.fetch(DEX_ID[name])
+    if not art:
+        return None
+    return artwork.cached(art, art.rsplit(".", 1)[0] + ".accent")
+
+
+def build(name, mode, intensity):
+    return palette.build(TYPE_COLORS, KINDS[name], accent_for(name),
+                         mode=mode, intensity=intensity)
+
+
+def wallpaper_path(name, mode, intensity):
+    """Render-once preview wallpaper, keyed by everything that changes it."""
+    slug = "%d-%s-i%s-%dx%d.jpg" % (
+        DEX_ID[name], mode, ("%.2f" % intensity).rstrip("0").rstrip("."),
+        PREVIEW_W, PREVIEW_H)
+    path = os.path.join(PREVIEWS, slug)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path
+    os.makedirs(PREVIEWS, exist_ok=True)
+    colors = build(name, mode, intensity)
+    with _render_lock:
+        if not os.path.exists(path):
+            wallpaper.render(artwork.fetch(DEX_ID[name]), colors, path,
+                             PREVIEW_W, PREVIEW_H, mode=mode)
+    return path
+
+
+def pokemon_info(name, mode, intensity):
+    accent = accent_for(name)
+    source = accent or TYPE_COLORS[KINDS[name][0]]
+    from oklch import hex_to_oklch
+    predicted = ("light" if hex_to_oklch(source)[0] >= palette.LIGHT_ACCENT_L
+                 else "dark")
+    shown = predicted if mode == "pokemon" else mode
+    return {
+        "name": name,
+        "dex": DEX_ID[name],
+        "kinds": KINDS[name],
+        "predicted": predicted,
+        "palettes": {
+            m: build(name, m, intensity) for m in ("dark", "light")
+        },
+        "shown": shown,
+    }
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def _send(self, code, body, ctype="application/json"):
+        if isinstance(body, (dict, list)):
+            body = json.dumps(body).encode()
+        elif isinstance(body, str):
+            body = body.encode()
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        query = dict(urllib.parse.parse_qsl(url.query))
+        try:
+            if url.path == "/":
+                with open(os.path.join(ROOT, "data", "setup.html")) as fh:
+                    page = fh.read()
+                boot = {"samples": [
+                    {"name": n, "dex": DEX_ID[n], "kinds": KINDS[n]}
+                    for n in SAMPLES]}
+                page = page.replace("/*__BOOT__*/null", json.dumps(boot))
+                self._send(200, page, "text/html; charset=utf-8")
+            elif url.path == "/api/pokemon":
+                name = query.get("name", "").strip().lower()
+                if name not in KINDS:
+                    self._send(404, {"error": "unknown pokemon"})
+                    return
+                self._send(200, pokemon_info(
+                    name, query.get("mode", "dark"),
+                    palette.clamp_intensity(
+                        float(query.get("intensity", 1.0)))))
+            elif url.path == "/wallpaper":
+                name = query.get("name", "").strip().lower()
+                mode = query.get("mode", "dark")
+                if name not in KINDS or mode not in ("dark", "light"):
+                    self._send(404, {"error": "bad request"})
+                    return
+                intensity = palette.clamp_intensity(
+                    float(query.get("intensity", 1.0)))
+                with open(wallpaper_path(name, mode, intensity), "rb") as fh:
+                    self._send(200, fh.read(), "image/jpeg")
+            else:
+                self._send(404, {"error": "not found"})
+        except BrokenPipeError:
+            pass
+        except Exception as exc:  # a broken preview must not kill the server
+            try:
+                self._send(500, {"error": str(exc)})
+            except BrokenPipeError:
+                pass
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        body = json.loads(self.rfile.read(length) or b"{}")
+        if self.path == "/api/finish":
+            _answers.update(body)
+            _answers["__ok__"] = True
+            self._send(200, {"ok": True})
+            _done.set()
+        elif self.path == "/api/cancel":
+            self._send(200, {"ok": True})
+            _done.set()
+        else:
+            self._send(404, {"error": "not found"})
+
+
+def open_browser(url):
+    for cmd in (["xdg-open", url],
+                ["chromium", "--app=%s" % url],
+                ["setsid", "xdg-open", url]):
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+def main():
+    no_browser = "--no-browser" in sys.argv[1:]
+    if not no_browser and not (os.environ.get("WAYLAND_DISPLAY")
+                               or os.environ.get("DISPLAY")):
+        sys.exit(2)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    except OSError:
+        sys.exit(2)
+    port = server.server_address[1]
+    url = "http://127.0.0.1:%d/" % port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    # Warm the default preview before the page asks for it, so the first
+    # paint is the wallpaper rather than a spinner.
+    threading.Thread(target=lambda: wallpaper_path(SAMPLES[0], "dark", 1.0),
+                     daemon=True).start()
+
+    if not no_browser and not open_browser(url):
+        server.shutdown()
+        sys.exit(2)
+    print("setup widget: %s (Cancel in the page, or ctrl-c here, aborts)"
+          % url, file=sys.stderr)
+
+    try:
+        _done.wait()
+    except KeyboardInterrupt:
+        sys.exit(1)
+    finally:
+        server.shutdown()
+
+    if not _answers.pop("__ok__", False):
+        sys.exit(1)
+    for key in ("MODE", "INTENSITY", "POKEMON", "PIN",
+                "WITH_ANIMATION", "WITH_MENU", "WITH_LOCK", "WITH_GREETING"):
+        value = _answers.get(key, "")
+        if isinstance(value, bool):
+            value = int(value)
+        print("%s=%s" % (key, value))
+
+
+if __name__ == "__main__":
+    main()

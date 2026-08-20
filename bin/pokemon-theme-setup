@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Interactive setup wizard for the installer, with live previews.
+
+Full-screen, arrow-key driven, stdlib only: every choice redraws the preview
+above it, so the palettes (and the creature itself, drawn from its official
+artwork) are on screen while choosing, not scrolled away before the question.
+
+The UI talks to /dev/tty; the answers land on stdout as shell assignments for
+install.sh to eval. Exit codes: 0 answered, 1 aborted, 2 no usable terminal
+(install.sh then falls back to plain prompts).
+"""
+
+import json
+import os
+import sys
+import termios
+import tty
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "lib"))
+
+import palette  # noqa: E402
+import preview  # noqa: E402
+
+SAMPLES = ("pikachu", "charizard", "venusaur", "gengar")
+SPRITE_ROWS = 13
+MIN_COLS_FOR_SPRITE = 100
+
+BOLD, DIM, RESET = "\x1b[1m", "\x1b[2m", "\x1b[0m"
+
+
+class Screen:
+    """Raw-mode alternate-screen terminal on /dev/tty.
+
+    Opened with os.open rather than open(): a buffered "r+" stream on a
+    terminal is rejected as unseekable.
+    """
+
+    def __init__(self):
+        self.fd = os.open("/dev/tty", os.O_RDWR)
+
+    def __enter__(self):
+        self.saved = termios.tcgetattr(self.fd)
+        tty.setraw(self.fd)
+        self.write("\x1b[?1049h\x1b[?25l")
+        return self
+
+    def __exit__(self, *exc):
+        self.write("\x1b[?1049l\x1b[?25h")
+        termios.tcsetattr(self.fd, termios.TCSADRAIN, self.saved)
+        os.close(self.fd)
+
+    def write(self, text):
+        os.write(self.fd, text.encode())
+
+    def draw(self, lines):
+        out = ["\x1b[H\x1b[2J"]
+        for line in lines:
+            out.append("\x1b[K" + line + "\r\n")
+        self.write("".join(out)[:1024 * 512])
+
+    def size(self):
+        try:
+            return os.get_terminal_size(self.fd)
+        except OSError:
+            return os.terminal_size((80, 24))
+
+    def _read(self, n):
+        data = b""
+        while len(data) < n:
+            chunk = os.read(self.fd, n - len(data))
+            if not chunk:
+                break
+            data += chunk
+        return data.decode(errors="replace")
+
+    def key(self):
+        ch = self._read(1)
+        if ch == "\x1b":
+            rest = self._read(2)
+            if rest == "[A":
+                return "up"
+            if rest == "[B":
+                return "down"
+            return "esc"
+        if ch in ("\r", "\n"):
+            return "enter"
+        if ch in ("\x7f", "\x08"):
+            return "backspace"
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        return ch
+
+
+def side_by_side(left, right, gap=3):
+    """Merge two line blocks horizontally. `left` lines must be equal width
+    on screen; sprite lines are, and that is the only left block used."""
+    if not left:
+        return list(right)
+    height = max(len(left), len(right))
+    width = 2 * SPRITE_ROWS * 2  # sprite cells per line
+    out = []
+    for i in range(height):
+        l = left[i] if i < len(left) else " " * width
+        r = right[i] if i < len(right) else ""
+        out.append(l + RESET + " " * gap + r)
+    return out
+
+
+class Wizard:
+    def __init__(self, screen):
+        self.s = screen
+        with open(os.path.join(ROOT, "data", "types.json")) as fh:
+            self.kinds = json.load(fh)
+        with open(os.path.join(ROOT, "data", "type-colors.json")) as fh:
+            self.type_colors = json.load(fh)
+        with open(os.path.join(ROOT, "data", "dex.json")) as fh:
+            self.dex = json.load(fh)
+        self.sprites = {}
+
+    def sprite(self, name):
+        """Cached half-block artwork; [] offline. Fetch shows a notice first."""
+        if name not in self.sprites:
+            if self.s.size()[0] < MIN_COLS_FOR_SPRITE:
+                self.sprites[name] = []
+            else:
+                self.s.draw(["", DIM + "  fetching artwork..." + RESET])
+                dex_id = self.dex.index(name) + 1
+                self.sprites[name] = preview.sprite(dex_id, SPRITE_ROWS)
+        return self.sprites[name]
+
+    def build(self, name, mode, intensity):
+        return palette.build(self.type_colors, self.kinds[name],
+                             mode=mode, intensity=intensity)
+
+    def sample_strips(self, mode, intensity):
+        width = max(len(n) for n in SAMPLES) + 2
+        lines = []
+        for name in SAMPLES:
+            if mode == "pokemon":
+                actual = preview.predicted_mode(self.type_colors,
+                                                self.kinds[name])
+                tag = DIM + " -> " + actual + RESET
+            elif mode == "auto":
+                actual, tag = None, ""
+            else:
+                actual, tag = mode, ""
+            if mode == "auto":
+                cell = (preview.strip(self.build(name, "dark", intensity))
+                        + "  " + preview.strip(
+                            self.build(name, "light", intensity)))
+            else:
+                cell = preview.strip(self.build(name, actual, intensity))
+            lines.append("%-*s%s%s" % (width, name, cell, tag))
+        if mode == "auto":
+            lines.append(DIM + "%-*s%-42s%s" % (width, "", "dark (night)",
+                                                "light (day)") + RESET)
+        return lines
+
+    def menu(self, title, hint, options, preview_for, start=0):
+        """options: [(value, label)]. Returns the chosen value, None on q."""
+        idx = start
+        while True:
+            body = preview_for(options[idx][0])
+            lines = ["", "  " + BOLD + title + RESET + "   " + DIM + hint
+                     + RESET, ""]
+            lines += ["  " + line for line in body]
+            lines.append("")
+            for i, (_, label) in enumerate(options):
+                marker = "\x1b[36m❯ " + RESET + BOLD if i == idx else "  "
+                lines.append("  %s%s%s" % (marker, label, RESET))
+            lines.append("")
+            lines.append("  " + DIM
+                         + "↑↓ choose · enter confirm · q abort" + RESET)
+            self.s.draw(lines)
+            key = self.s.key()
+            if key in ("up", "k"):
+                idx = (idx - 1) % len(options)
+            elif key in ("down", "j"):
+                idx = (idx + 1) % len(options)
+            elif key == "enter":
+                return options[idx][0]
+            elif key in ("q", "esc"):
+                return None
+
+    def pick_mode(self):
+        def body(mode):
+            # Auto shows both columns, which with a sprite beside them would
+            # overrun a normal terminal; the strips alone carry the point.
+            sprite = [] if mode == "auto" else self.sprite(SAMPLES[0])
+            return side_by_side(sprite, self.sample_strips(mode, 1.0))
+        return self.menu(
+            "Colour scheme", "the palettes below follow the highlight",
+            [("dark", "dark"),
+             ("light", "light"),
+             ("auto", "auto — light 08:00-20:00, dark at night"),
+             ("pokemon", "pokemon — bright creatures get the light theme")],
+            body)
+
+    def pick_intensity(self, mode):
+        shown = mode if mode in ("dark", "light") else "auto"
+
+        def body(value):
+            sprite = [] if shown == "auto" else self.sprite(SAMPLES[0])
+            return side_by_side(sprite,
+                                self.sample_strips(shown, float(value)))
+        return self.menu(
+            "Colour intensity", "chroma only; readability is pinned",
+            [("1.0", "1.0 — as designed"),
+             ("0.7", "0.7 — muted"),
+             ("1.3", "1.3 — vivid")],
+            body)
+
+    def read_name(self, prompt):
+        """Line input drawn by the wizard itself (raw mode has no readline)."""
+        text = ""
+        while True:
+            self.s.draw(["", "  " + BOLD + prompt + RESET, "",
+                         "  Pokemon: " + text + "\x1b[7m \x1b[0m", "",
+                         "  " + DIM + "enter confirm · empty enter skips"
+                         + RESET])
+            key = self.s.key()
+            if key == "enter":
+                return text.strip().lower()
+            if key == "backspace":
+                text = text[:-1]
+            elif key in ("esc",):
+                return ""
+            elif len(key) == 1 and (key.isalnum() or key in "-. '"):
+                text += key
+
+    def pick_pokemon(self, mode, intensity):
+        """Returns (name, pin) -- ("", 0) when skipped."""
+        while True:
+            name = self.read_name(
+                "Choose your starter? Type its name, or leave empty to "
+                "meet whatever appears in tomorrow's wild encounter.")
+            if not name:
+                return "", 0
+            if name not in self.kinds:
+                self.s.draw(["", "  unknown pokemon: %s" % name, "",
+                             "  " + DIM + "names as in the national dex, "
+                             "lowercase -- any key to retry" + RESET])
+                self.s.key()
+                continue
+
+            shown = mode if mode in ("dark", "light") else "auto"
+
+            def body(_):
+                width = len(name) + 2
+                if shown == "auto":
+                    strips = ["%-*s%s  %s" % (
+                        width, name,
+                        preview.strip(self.build(name, "dark", intensity)),
+                        preview.strip(self.build(name, "light", intensity)))]
+                else:
+                    strips = ["%-*s%s" % (
+                        width, name,
+                        preview.strip(self.build(name, shown, intensity)))]
+                strips.append("")
+                strips.append(DIM + "/".join(self.kinds[name]) + RESET)
+                sprite = [] if shown == "auto" else self.sprite(name)
+                return side_by_side(sprite, strips)
+
+            choice = self.menu(
+                name, "", [("pin", "pin it — your partner pokemon, every day"),
+                           ("retry", "actually, a different one"),
+                           ("skip", "keep wild encounters — a new pokemon "
+                            "at midnight")], body)
+            if choice == "pin":
+                return name, 1
+            if choice in (None, "skip"):
+                return "", 0
+
+    def pick_extras(self):
+        items = [
+            ["WITH_ANIMATION", "animated particles on the wallpaper", True],
+            ["WITH_MENU", "pokemon picker in the omarchy menu", True],
+            ["WITH_LOCK", "pokemon theme lock screen "
+             "(github.com/WSeubring/omarchy-lock-pokemon)", True],
+            ["WITH_GREETING", "pokemon greeting in the terminal", False],
+        ]
+        idx = 0
+        while True:
+            lines = ["", "  " + BOLD + "Extras" + RESET, ""]
+            for i, (_, label, on) in enumerate(items):
+                marker = "\x1b[36m❯ " + RESET if i == idx else "  "
+                box = "[x]" if on else "[ ]"
+                lines.append("  %s%s %s" % (marker, box, label))
+            lines.append("")
+            lines.append("  " + DIM
+                         + "space toggle · enter continue · q abort" + RESET)
+            self.s.draw(lines)
+            key = self.s.key()
+            if key in ("up", "k"):
+                idx = (idx - 1) % len(items)
+            elif key in ("down", "j"):
+                idx = (idx + 1) % len(items)
+            elif key == " ":
+                items[idx][2] = not items[idx][2]
+            elif key == "enter":
+                return {k: v for k, _, v in items}
+            elif key in ("q", "esc"):
+                return None
+
+    def run(self):
+        mode = self.pick_mode()
+        if mode is None:
+            return None
+        intensity = self.pick_intensity(mode)
+        if intensity is None:
+            return None
+        pokemon, pin = self.pick_pokemon(mode, float(intensity))
+        extras = self.pick_extras()
+        if extras is None:
+            return None
+        return {"MODE": mode, "INTENSITY": intensity,
+                "POKEMON": pokemon, "PIN": pin, **extras}
+
+
+def main():
+    if not os.path.exists("/dev/tty"):
+        sys.exit(2)
+    try:
+        with Screen() as screen:
+            answers = Wizard(screen).run()
+    except (OSError, termios.error):
+        sys.exit(2)
+    except KeyboardInterrupt:
+        sys.exit(1)
+    if answers is None:
+        sys.exit(1)
+    for key, value in answers.items():
+        if isinstance(value, bool):
+            value = int(value)
+        print("%s=%s" % (key, value))
+
+
+if __name__ == "__main__":
+    main()

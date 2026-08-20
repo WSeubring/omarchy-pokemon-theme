@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pokemon Theme Setup</title>
+<style>
+  /* The palette being previewed is the page's own palette: every token below
+     is rewritten from the generated theme, so the widget is the first
+     surface the theme retints. */
+  :root {
+    --bg: #291a15; --bg-dark: #1e1310; --bg-darker: #160e0b;
+    --bg-lighter: #3e2923; --sel: #4d352f; --muted: #6a4b42;
+    --fg: #d9b4aa; --fg-dim: #836057; --fg-bright: #f4cabe;
+    --accent: #e56542;
+    --red: #f78195; --green: #bad373; --yellow: #f2c589;
+    --blue: #9fa0f7; --cyan: #72c1a8; --magenta: #e2a1dc;
+    --orange: #f4a391;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font: 14px/1.5 ui-monospace, "JetBrainsMono Nerd Font", "Cascadia Mono", monospace;
+    background: var(--bg-darker); color: var(--fg);
+    display: grid; grid-template-columns: 360px 1fr;
+    transition: background-color .35s ease, color .35s ease;
+  }
+
+  /* ---------------- instrument rail ---------------- */
+  aside {
+    background: var(--bg-dark); border-right: 1px solid var(--bg-lighter);
+    padding: 28px 26px 20px; display: flex; flex-direction: column;
+    gap: 26px; overflow-y: auto;
+    transition: background-color .35s ease;
+  }
+  h1 {
+    font-size: 15px; letter-spacing: .28em; text-transform: uppercase;
+    color: var(--fg-bright); font-weight: 700;
+  }
+  h1 small {
+    display: block; letter-spacing: .1em; font-size: 10px;
+    color: var(--fg-dim); font-weight: 400; margin-top: 4px;
+  }
+  section > label, .grouplabel {
+    display: block; font-size: 10px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--fg-dim); margin-bottom: 10px;
+  }
+
+  .opts { display: flex; flex-direction: column; gap: 2px; }
+  .opt {
+    display: flex; align-items: baseline; gap: 10px; padding: 7px 10px;
+    border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+  }
+  .opt:hover { background: var(--bg-lighter); }
+  .opt.on { background: var(--sel); border-color: var(--accent); }
+  .opt b { font-weight: 600; color: var(--fg-bright); }
+  .opt span { color: var(--fg-dim); font-size: 12px; }
+
+  .slider { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  #ival {
+    min-width: 4ch; text-align: right; color: var(--fg-bright);
+    font-weight: 600;
+  }
+  .ticks {
+    display: flex; justify-content: space-between; font-size: 10px;
+    color: var(--fg-dim); padding: 2px 2px 0;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 5px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--bg-lighter); color: var(--fg); font-size: 12px;
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip.on { border-color: var(--accent); color: var(--fg-bright);
+             background: var(--sel); }
+  .chip .dex { color: var(--fg-dim); margin-right: 4px; }
+
+  #search {
+    width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid var(--bg-lighter); background: var(--bg);
+    color: var(--fg-bright); font: inherit;
+  }
+  #search::placeholder { color: var(--fg-dim); }
+  #search:focus { outline: none; border-color: var(--accent); }
+  #searchmsg { font-size: 11px; color: var(--red); min-height: 16px;
+               margin-top: 4px; }
+
+  .starter { display: flex; flex-direction: column; gap: 6px;
+             margin-top: 10px; }
+  .starter button {
+    flex: 1; padding: 7px 4px; font: inherit; font-size: 12px;
+    border-radius: 6px; border: 1px solid var(--bg-lighter);
+    background: none; color: var(--fg); cursor: pointer;
+  }
+  .starter button.on { border-color: var(--accent); background: var(--sel);
+                       color: var(--fg-bright); }
+
+  .checks { display: flex; flex-direction: column; gap: 8px; }
+  .checks label { display: flex; gap: 10px; align-items: center;
+                  cursor: pointer; font-size: 13px; }
+  .checks input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .checks .repolink { color: var(--fg-dim); text-decoration: none;
+                      font-size: 12px; padding: 0 2px; }
+  .checks .repolink:hover { color: var(--accent); }
+
+  footer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  #install {
+    padding: 12px; font: inherit; font-weight: 700; letter-spacing: .18em;
+    text-transform: uppercase; font-size: 13px; border: none;
+    border-radius: 8px; background: var(--accent); color: var(--bg-darker);
+    cursor: pointer;
+  }
+  #install:hover { filter: brightness(1.08); }
+  #cancel {
+    background: none; border: none; color: var(--fg-dim); font: inherit;
+    font-size: 12px; cursor: pointer; text-decoration: underline;
+  }
+
+  /* ---------------- stage ---------------- */
+  main { position: relative; overflow: hidden; }
+  .wall {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0; transition: opacity .45s ease;
+  }
+  .wall.show { opacity: 1; }
+
+  #bar {
+    position: absolute; top: 14px; left: 18px; right: 18px; height: 30px;
+    border-radius: 8px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    color: var(--fg); display: flex; align-items: center; gap: 14px;
+    padding: 0 14px; font-size: 12px;
+  }
+  #bar .ws { display: flex; gap: 6px; }
+  #bar .ws i { width: 8px; height: 8px; border-radius: 50%;
+               background: var(--fg-dim); }
+  #bar .ws i.on { background: var(--accent); }
+  #bar .clock { margin-left: auto; color: var(--fg-bright); }
+
+  #term {
+    position: absolute; left: 5%; bottom: 8%; width: 46%; min-width: 480px;
+    border-radius: 10px; overflow: hidden; background: var(--bg);
+    border: 2px solid var(--accent);
+    box-shadow: 0 18px 50px rgba(0,0,0,.35);
+    transition: background-color .35s ease;
+    font-size: 13px;
+  }
+  #term .title {
+    background: var(--bg-dark); padding: 6px 12px; font-size: 11px;
+    color: var(--fg-dim); display: flex; gap: 7px; align-items: center;
+  }
+  #term .title i { width: 10px; height: 10px; border-radius: 50%; }
+  #term pre { padding: 12px 16px 16px; overflow-x: auto; line-height: 1.65; }
+  .p  { color: var(--accent); }
+  .d  { color: var(--fg-dim); }
+  .r  { color: var(--red); }  .g { color: var(--green); }
+  .y  { color: var(--yellow); } .b { color: var(--blue); }
+  .c  { color: var(--cyan); }  .m { color: var(--magenta); }
+  .hl { background: var(--sel); color: var(--fg); display: inline-block;
+        width: 100%; }
+  .cur { background: var(--fg); color: var(--bg); }
+
+  #daynight {
+    position: absolute; top: 58px; right: 18px; display: none; gap: 2px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-radius: 999px; padding: 3px;
+  }
+  #daynight button {
+    border: none; background: none; color: var(--fg-dim); font: inherit;
+    font-size: 12px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+  }
+  #daynight button.on { background: var(--sel); color: var(--fg-bright); }
+
+  #verdict {
+    position: absolute; top: 58px; right: 18px; display: none;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    color: var(--fg); font-size: 12px; border-radius: 999px;
+    padding: 7px 14px;
+  }
+  #verdict b { color: var(--accent); }
+
+  #dexplate {
+    position: absolute; right: 18px; bottom: 8%;
+    text-align: right; color: var(--fg);
+    text-shadow: 0 1px 8px rgba(0,0,0,.25);
+  }
+  #dexplate .no { font-size: 44px; font-weight: 700; color: var(--fg-bright);
+                  letter-spacing: .04em; }
+  #dexplate .nm { font-size: 18px; text-transform: capitalize; }
+  #dexplate .ty { font-size: 11px; letter-spacing: .2em;
+                  text-transform: uppercase; color: var(--fg-dim); }
+
+  #done {
+    position: absolute; inset: 0; display: none; place-items: center;
+    background: color-mix(in srgb, var(--bg-darker) 82%, transparent);
+    text-align: center;
+  }
+  #done .card h2 { letter-spacing: .25em; text-transform: uppercase;
+                   font-size: 16px; color: var(--fg-bright); }
+  #done .card p { color: var(--fg-dim); margin-top: 10px; }
+
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--bg-lighter); }
+    #term { min-width: 0; width: 80%; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Pokemon Theme<small>setup · a new pokemon every day</small></h1>
+
+  <section>
+    <label>Colour scheme</label>
+    <div class="opts" id="modes">
+      <div class="opt" data-mode="dark"><b>dark</b></div>
+      <div class="opt" data-mode="light"><b>light</b></div>
+      <div class="opt" data-mode="auto"><b>auto</b><span>light 08:00–20:00</span></div>
+      <div class="opt" data-mode="pokemon"><b>pokemon</b><span>bright pokemon get the light theme</span></div>
+    </div>
+  </section>
+
+  <section>
+    <label>Intensity</label>
+    <div class="slider">
+      <input type="range" id="intensity" min="0.4" max="1.6" step="0.05" value="1.0">
+      <span id="ival">1.00</span>
+    </div>
+    <div class="ticks"><span>muted</span><span>as designed</span><span>vivid</span></div>
+  </section>
+
+  <section>
+    <label>Preview Pokemon</label>
+    <div class="chips" id="chips"></div>
+    <input id="search" placeholder="who's that pokemon? type a name…" spellcheck="false">
+    <div id="searchmsg"></div>
+    <div class="grouplabel" style="margin-top:14px">Choose it as your starter?</div>
+    <div class="starter" id="starter">
+      <button data-v="">wild encounters — a new pokemon appears at midnight</button>
+      <button data-v="pin">pin it — your partner pokemon, every day</button>
+    </div>
+  </section>
+
+  <section>
+    <label>Extras</label>
+    <div class="checks">
+      <label><input type="checkbox" id="x_anim" checked> animated particles on the wallpaper</label>
+      <label><input type="checkbox" id="x_menu" checked> pokemon picker in the omarchy menu</label>
+      <label><input type="checkbox" id="x_lock" checked> pokemon theme lock screen
+        <a class="repolink" href="https://github.com/WSeubring/omarchy-lock-pokemon"
+           target="_blank" rel="noreferrer" title="omarchy-lock-pokemon on GitHub">↗</a></label>
+      <label><input type="checkbox" id="x_greet"> pokemon greeting in the terminal</label>
+    </div>
+  </section>
+
+  <footer>
+    <button id="install">Install</button>
+    <button id="cancel">cancel — nothing is touched</button>
+  </footer>
+</aside>
+
+<main>
+  <img class="wall" id="wallA" alt="">
+  <img class="wall" id="wallB" alt="">
+  <div id="bar">
+    <div class="ws"><i class="on"></i><i></i><i></i><i></i></div>
+    <span id="barname"></span>
+    <span class="clock" id="clock"></span>
+  </div>
+  <div id="daynight">
+    <button data-v="dark">night</button>
+    <button data-v="light" class="on">day</button>
+  </div>
+  <div id="verdict"></div>
+  <div id="term">
+    <div class="title">
+      <i style="background:var(--red)"></i><i style="background:var(--yellow)"></i><i style="background:var(--green)"></i>
+      <span id="termtitle">alacritty</span>
+    </div>
+<pre><span class="p">wes@omarchy</span>:<span class="b">~/theme</span>$ git diff lib/palette.py
+<span class="d">@@ -44,7 +44,9 @@ def build(type_colors, types):</span>
+<span class="r">-    accent = pin_lightness(source)</span>
+<span class="g">+    accent = readable_band(source, mode)</span>
+<span class="d"># hue from artwork, lightness from the ladder</span>
+<span class="m">def</span> <span class="b">retint</span>(<span class="y">day</span>): <span class="m">return</span> ladder(<span class="g">"oklch"</span>, hue(day))
+<span class="hl">selected line — this is the selection colour</span>
+<span class="c">INFO</span>  regenerated 17 configs
+<span class="p">wes@omarchy</span>:<span class="b">~/theme</span>$ <span class="cur"> </span></pre>
+  </div>
+  <div id="dexplate">
+    <div class="no" id="dexno"></div>
+    <div class="nm" id="dexnm"></div>
+    <div class="ty" id="dexty"></div>
+  </div>
+  <div id="done"><div class="card">
+    <h2 id="donehead">Installing…</h2>
+    <p id="donetext">Back to the terminal — the installer takes it from here.</p>
+  </div></div>
+</main>
+
+<script>
+const BOOT = /*__BOOT__*/null;
+const seed = new URLSearchParams(location.search);
+const S = {
+  mode: seed.get("mode") || "dark",
+  intensity: parseFloat(seed.get("intensity") || "1.0"),
+  creature: seed.get("creature") || BOOT.samples[0].name,
+  starter: "", starterName: "",
+  info: null,          // /api/pokemon payload for the creature
+  face: "dark",        // which palette the stage shows right now
+  wallFlip: false,
+};
+
+const $ = (q) => document.querySelector(q);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+function shownMode() {
+  if (S.mode === "dark" || S.mode === "light") return S.mode;
+  if (S.mode === "pokemon") return S.info ? S.info.predicted : "dark";
+  return S.face; // auto: whatever the day/night toggle says
+}
+
+function applyPalette(p) {
+  const map = {
+    "--bg": p.background, "--bg-dark": p.dark_background,
+    "--bg-darker": p.darker_background, "--bg-lighter": p.lighter_background,
+    "--sel": p.selection, "--muted": p.muted,
+    "--fg": p.foreground, "--fg-dim": p.dark_foreground,
+    "--fg-bright": p.bright_foreground, "--accent": p.accent,
+    "--red": p.red, "--green": p.green, "--yellow": p.yellow,
+    "--blue": p.blue, "--cyan": p.cyan, "--magenta": p.magenta,
+    "--orange": p.orange,
+  };
+  for (const [k, v] of Object.entries(map))
+    document.documentElement.style.setProperty(k, v);
+}
+
+function setWall(url) {
+  const showing = S.wallFlip ? $("#wallB") : $("#wallA");
+  const hidden = S.wallFlip ? $("#wallA") : $("#wallB");
+  hidden.onload = () => { hidden.classList.add("show"); showing.classList.remove("show"); };
+  hidden.src = url;
+  S.wallFlip = !S.wallFlip;
+}
+
+async function refresh() {
+  const q = `name=${S.creature}&mode=${S.mode}&intensity=${S.intensity}`;
+  const res = await fetch(`/api/pokemon?${q}`);
+  if (!res.ok) return;
+  S.info = await res.json();
+  const m = shownMode();
+  applyPalette(S.info.palettes[m]);
+  setWall(`/wallpaper?name=${S.creature}&mode=${m}&intensity=${S.intensity}`);
+
+  $("#dexno").textContent = "#" + String(S.info.dex).padStart(3, "0");
+  $("#dexnm").textContent = S.info.name;
+  $("#dexty").textContent = S.info.kinds.join(" · ");
+  $("#barname").textContent = S.info.name + " day";
+  $("#termtitle").textContent = `${S.info.name} — alacritty`;
+
+  $("#daynight").style.display = S.mode === "auto" ? "flex" : "none";
+  const v = $("#verdict");
+  if (S.mode === "pokemon") {
+    v.style.display = "block";
+    v.innerHTML = `${S.info.name} would run <b>${S.info.predicted}</b>`;
+  } else v.style.display = "none";
+}
+const refreshSoon = debounce(refresh, 220);
+
+/* mode */
+$("#modes").addEventListener("click", (e) => {
+  const opt = e.target.closest(".opt"); if (!opt) return;
+  S.mode = opt.dataset.mode;
+  document.querySelectorAll("#modes .opt").forEach(o => o.classList.toggle("on", o === opt));
+  if (S.mode === "auto") S.face = new Date().getHours() >= 8 && new Date().getHours() < 20 ? "light" : "dark";
+  refresh();
+});
+
+/* day/night toggle for auto */
+$("#daynight").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  S.face = b.dataset.v;
+  document.querySelectorAll("#daynight button").forEach(x => x.classList.toggle("on", x === b));
+  refresh();
+});
+
+/* intensity */
+$("#intensity").addEventListener("input", (e) => {
+  S.intensity = parseFloat(e.target.value);
+  $("#ival").textContent = S.intensity.toFixed(2);
+  document.querySelectorAll(".wall").forEach(w => w.style.filter = `saturate(${S.intensity})`);
+  refreshSoon();
+});
+
+/* creature chips */
+function drawChips() {
+  const box = $("#chips"); box.innerHTML = "";
+  const names = [...BOOT.samples.map(s => s.name)];
+  if (S.starterName && !names.includes(S.starterName)) names.push(S.starterName);
+  if (!names.includes(S.creature)) names.push(S.creature);
+  for (const n of names) {
+    const el = document.createElement("span");
+    el.className = "chip" + (n === S.creature ? " on" : "");
+    const sample = BOOT.samples.find(s => s.name === n);
+    el.innerHTML = sample ? `<span class="dex">#${sample.dex}</span>${n}` : n;
+    el.onclick = () => { S.creature = n; drawChips(); refresh(); };
+    box.appendChild(el);
+  }
+}
+
+/* search any of the 905 */
+$("#search").addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  const name = e.target.value.trim().toLowerCase();
+  if (!name) return;
+  const res = await fetch(`/api/pokemon?name=${encodeURIComponent(name)}&mode=${S.mode}&intensity=${S.intensity}`);
+  if (!res.ok) { $("#searchmsg").textContent = `no "${name}" in the dex`; return; }
+  $("#searchmsg").textContent = "";
+  e.target.value = "";
+  S.creature = name;
+  drawChips(); refresh();
+});
+
+/* starter */
+$("#starter").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  S.starter = b.dataset.v;
+  S.starterName = S.starter ? S.creature : "";
+  document.querySelectorAll("#starter button").forEach(x => x.classList.toggle("on", x === b));
+  drawChips();
+});
+
+/* finish */
+$("#install").onclick = async () => {
+  const answers = {
+    MODE: S.mode, INTENSITY: S.intensity.toFixed(2).replace(/0+$/, "").replace(/\.$/, ""),
+    POKEMON: S.starterName, PIN: S.starter === "pin" ? 1 : 0,
+    WITH_ANIMATION: $("#x_anim").checked, WITH_MENU: $("#x_menu").checked,
+    WITH_LOCK: $("#x_lock").checked, WITH_GREETING: $("#x_greet").checked,
+  };
+  await fetch("/api/finish", { method: "POST", body: JSON.stringify(answers) });
+  $("#done").style.display = "grid";
+};
+$("#cancel").onclick = async () => {
+  await fetch("/api/cancel", { method: "POST", body: "{}" });
+  $("#donehead").textContent = "Cancelled";
+  $("#donetext").textContent = "Nothing was installed. You can close this tab.";
+  $("#done").style.display = "grid";
+};
+
+/* clock, purely for the bar mock */
+setInterval(() => {
+  $("#clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}, 1000);
+
+if (S.mode === "auto")
+  S.face = new Date().getHours() >= 8 && new Date().getHours() < 20 ? "light" : "dark";
+document.querySelector(`#modes .opt[data-mode="${S.mode}"]`).classList.add("on");
+$("#intensity").value = S.intensity;
+$("#ival").textContent = S.intensity.toFixed(2);
+document.querySelector('#starter button[data-v=""]').classList.add("on");
+drawChips();
+refresh();
+</script>
+</body>
+</html>
