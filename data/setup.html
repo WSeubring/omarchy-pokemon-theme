@@ -29,8 +29,8 @@
   /* ---------------- instrument rail ---------------- */
   aside {
     background: var(--bg-dark); border-right: 1px solid var(--bg-lighter);
-    padding: 28px 26px 20px; display: flex; flex-direction: column;
-    gap: 26px; overflow-y: auto;
+    padding: 16px 18px 14px; display: flex; flex-direction: column;
+    gap: 14px; overflow-y: auto;
     transition: background-color .35s ease;
   }
   h1 {
@@ -43,12 +43,12 @@
   }
   section > label, .grouplabel {
     display: block; font-size: 10px; letter-spacing: .22em;
-    text-transform: uppercase; color: var(--fg-dim); margin-bottom: 10px;
+    text-transform: uppercase; color: var(--fg-dim); margin-bottom: 6px;
   }
 
   .opts { display: flex; flex-direction: column; gap: 2px; }
   .opt {
-    display: flex; align-items: baseline; gap: 10px; padding: 7px 10px;
+    display: flex; align-items: baseline; gap: 10px; padding: 4px 10px;
     border-radius: 6px; cursor: pointer; border: 1px solid transparent;
   }
   .opt:hover { background: var(--bg-lighter); }
@@ -78,28 +78,28 @@
   .chip .dex { color: var(--fg-dim); margin-right: 4px; }
 
   #search {
-    width: 100%; margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+    width: 100%; margin-top: 6px; padding: 6px 10px; border-radius: 6px;
     border: 1px solid var(--bg-lighter); background: var(--bg);
     color: var(--fg-bright); font: inherit;
   }
   #search::placeholder { color: var(--fg-dim); }
   #search:focus { outline: none; border-color: var(--accent); }
-  #searchmsg { font-size: 11px; color: var(--red); min-height: 16px;
-               margin-top: 4px; }
+  #searchmsg { font-size: 11px; color: var(--red); min-height: 14px;
+               margin-top: 2px; }
 
-  .starter { display: flex; flex-direction: column; gap: 6px;
-             margin-top: 10px; }
+  .starter { display: flex; flex-direction: column; gap: 4px;
+             margin-top: 6px; }
   .starter button {
-    flex: 1; padding: 7px 4px; font: inherit; font-size: 12px;
+    flex: 1; padding: 5px 4px; font: inherit; font-size: 12px;
     border-radius: 6px; border: 1px solid var(--bg-lighter);
     background: none; color: var(--fg); cursor: pointer;
   }
   .starter button.on { border-color: var(--accent); background: var(--sel);
                        color: var(--fg-bright); }
 
-  .checks { display: flex; flex-direction: column; gap: 8px; }
+  .checks { display: flex; flex-direction: column; gap: 6px; }
   .checks label { display: flex; gap: 10px; align-items: center;
-                  cursor: pointer; font-size: 13px; }
+                  cursor: pointer; font-size: 12px; }
   .checks input { accent-color: var(--accent); width: 15px; height: 15px; }
   .checks .repolink { color: var(--fg-dim); text-decoration: none;
                       font-size: 12px; padding: 0 2px; }
@@ -111,9 +111,9 @@
     padding: 2px 8px;
   }
 
-  footer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  footer { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
   #install {
-    padding: 12px; font: inherit; font-weight: 700; letter-spacing: .18em;
+    padding: 10px; font: inherit; font-weight: 700; letter-spacing: .18em;
     text-transform: uppercase; font-size: 13px; border: none;
     border-radius: 8px; background: var(--accent); color: var(--bg-darker);
     cursor: pointer;
@@ -210,6 +210,14 @@
   #done li { padding: 3px 0; }
   #done li::before { content: "✓ "; color: var(--green); font-weight: 700; }
 
+  @media (max-height: 840px) {
+    aside { gap: 10px; padding: 12px 18px 10px; }
+    .opt { padding: 3px 10px; }
+    .ticks { display: none; }
+    #search { margin-top: 4px; padding: 5px 10px; }
+    #install { padding: 8px; }
+  }
+
   @media (max-width: 900px) {
     body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
     aside { border-right: none; border-bottom: 1px solid var(--bg-lighter); }
@@ -227,7 +235,7 @@
       <div class="opt" data-mode="dark"><b>dark</b></div>
       <div class="opt" data-mode="light"><b>light</b></div>
       <div class="opt" data-mode="auto"><b>auto</b><span>light 08:00–20:00</span></div>
-      <div class="opt" data-mode="pokemon"><b>pokemon</b><span>bright pokemon get the light theme</span></div>
+      <div class="opt" data-mode="pokemon"><b>pokemon</b><span>bright pokemon go light</span></div>
     </div>
   </section>
 
@@ -245,22 +253,22 @@
     <div class="chips" id="chips"></div>
     <input id="search" placeholder="who's that pokemon? type a name…" spellcheck="false">
     <div id="searchmsg"></div>
-    <div class="grouplabel" style="margin-top:14px">Choose it as your starter?</div>
+    <div class="grouplabel" style="margin-top:8px">Choose it as your starter?</div>
     <div class="starter" id="starter">
-      <button data-v="">wild encounters — a new pokemon appears at midnight</button>
-      <button data-v="pin">pin it — your partner pokemon, every day</button>
+      <button data-v="">wild encounters — new pokemon at midnight</button>
+      <button data-v="pin">pin it — your partner, every day</button>
     </div>
   </section>
 
   <section>
     <label>Extras</label>
     <div class="checks">
-      <label><input type="checkbox" id="x_anim" checked> animated particles on the wallpaper</label>
-      <label><input type="checkbox" id="x_menu" checked> pokemon picker in the omarchy menu</label>
+      <label><input type="checkbox" id="x_anim" checked> animated wallpaper particles</label>
+      <label><input type="checkbox" id="x_menu" checked> picker in the omarchy menu</label>
       <label><input type="checkbox" id="x_lock" checked> pokemon theme lock screen
         <a class="repolink" href="https://github.com/WSeubring/omarchy-lock-pokemon"
            target="_blank" rel="noreferrer" title="omarchy-lock-pokemon on GitHub">↗</a></label>
-      <label><input type="checkbox" id="x_greet"> pokemon greeting in the terminal</label>
+      <label><input type="checkbox" id="x_greet"> pokedex greeting in terminal</label>
     </div>
   </section>
 
