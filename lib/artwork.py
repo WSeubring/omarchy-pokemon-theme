@@ -30,6 +30,15 @@ URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
 CACHE = xdg.cache("artwork")
 
 
+def accent(dex_id, is_shiny=False):
+    """The creature's cached artwork accent, fetching artwork if needed.
+    None -- meaning "fall back to the type colour" -- when offline."""
+    path = fetch(dex_id, is_shiny)
+    if not path:
+        return None
+    return cached(path, path.rsplit(".", 1)[0] + ".accent")
+
+
 def fetch(dex_id, is_shiny=False):
     """Return a cached artwork path, or None if it cannot be had."""
     os.makedirs(CACHE, exist_ok=True)

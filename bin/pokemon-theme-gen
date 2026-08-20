@@ -88,10 +88,7 @@ def resolve_mode(now=None, accent_source=None, configured=None):
     """
     configured = configured or config.mode()
     if configured == "pokemon":
-        if not accent_source:
-            return "dark"
-        L = hex_to_oklch(accent_source)[0]
-        return "light" if L >= palette.LIGHT_ACCENT_L else "dark"
+        return palette.mode_for(accent_source)
     if configured != "auto":
         return configured
     now = now or datetime.now()
@@ -103,6 +100,7 @@ def resolve_mode(now=None, accent_source=None, configured=None):
     if start <= end:
         return "light" if start <= minutes < end else "dark"
     return "light" if minutes >= start or minutes < end else "dark"
+
 
 # Yaru ships a fixed set of accent hues; pick whichever sits closest to the
 # day's hue so the icon theme moves with the palette instead of staying put.
@@ -130,11 +128,6 @@ def load(name):
         return json.load(fh)
 
 
-def artwork_for(dex_id, is_shiny=False):
-    """Return a cached artwork path, or None if it cannot be had."""
-    return artwork.fetch(dex_id, is_shiny)
-
-
 def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
                   variant=""):
     """Put the wallpaper for this Pokemon in place, rendering it only if new.
@@ -151,7 +144,7 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
         os.utime(cached, None)
     else:
         os.makedirs(WALLPAPERS, exist_ok=True)
-        wallpaper.render(artwork_for(dex_id, is_shiny), colors, cached,
+        wallpaper.render(artwork.fetch(dex_id, is_shiny), colors, cached,
                          width, height,
                          sparkle="%d-shiny" % dex_id if is_shiny else None,
                          mode=mode)
@@ -330,10 +323,8 @@ def main():
     # creature's own colours are the palette's starting point, and in
     # "pokemon" mode the accent decides light-vs-dark, which the early-out
     # itself compares against. Cached, so a second run costs nothing.
-    art = artwork_for(dex_id, choice.shiny)
-    accent_source = None
-    if art and not args.type_hue:
-        accent_source = artwork.cached(art, art.rsplit(".", 1)[0] + ".accent")
+    accent_source = None if args.type_hue else artwork.accent(dex_id,
+                                                              choice.shiny)
 
     # Resolved every run rather than cached: with mode = "auto" the same
     # invocation gives different answers at 07:59 and 08:01, which is exactly

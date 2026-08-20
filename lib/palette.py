@@ -104,6 +104,18 @@ CHROMA_CEILING = 0.32
 # mid-tone majority well below, so the answer is rarely a coin flip.
 LIGHT_ACCENT_L = 0.80
 
+
+def mode_for(accent_source):
+    """The mode a creature earns in "pokemon" mode, from its accent colour.
+
+    The one place this rule lives -- the generator, the wizards and the setup
+    page all predict the same answer through it. No accent stays dark.
+    """
+    if not accent_source:
+        return "dark"
+    L = hex_to_oklch(accent_source)[0]
+    return "light" if L >= LIGHT_ACCENT_L else "dark"
+
 # Hyprland's active-window border, as a two-stop gradient for a dual type -- the
 # same treatment omarchy-lock-pokemon gives its card border. Omarchy resolves
 # this key into both hyprland.lua and shell.toml's hyprland.active-border, so one
@@ -178,7 +190,7 @@ def _scale_chroma(colors, intensity):
         if part.endswith("deg"):
             parts.append(part)
             continue
-        L, C, H = hex_to_oklch("#" + part[len("rgba("):-len(")")][:6])
+        L, C, H = hex_to_oklch("#" + part[5:11])  # rgba(rrggbbaa)
         scaled = oklch_to_hex(L, min(C * intensity, CHROMA_CEILING), H)
         parts.append("rgba(%s%s)" % (scaled.lstrip("#"), BORDER_ALPHA))
     out["hyprland_active_border"] = " ".join(parts)

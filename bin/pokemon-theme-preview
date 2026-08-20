@@ -19,10 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import palette  # noqa: E402
-from preview import strip  # noqa: E402
-
-# Colour-diverse and instantly recognisable: yellow, orange, green, purple.
-SAMPLES = ("pikachu", "charizard", "venusaur", "gengar")
+from preview import SAMPLES, strip  # noqa: E402
 
 
 def rows(kinds_by_name, type_colors, names, builds):

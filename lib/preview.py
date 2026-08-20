@@ -18,6 +18,10 @@ import artwork
 import palette
 from oklch import hex_to_oklch
 
+# Colour-diverse and instantly recognisable: yellow, orange, green, purple,
+# blue. Every preview surface shows the same faces.
+SAMPLES = ("pikachu", "charizard", "venusaur", "gengar", "lapras")
+
 RESET = "\x1b[0m"
 
 
@@ -49,8 +53,7 @@ def strip(colors):
 
 def predicted_mode(type_colors, kinds):
     """What mode = "pokemon" would pick, from the type colour (offline)."""
-    L = hex_to_oklch(type_colors[kinds[0]])[0]
-    return "light" if L >= palette.LIGHT_ACCENT_L else "dark"
+    return palette.mode_for(type_colors[kinds[0]])
 
 
 def sprite(dex_id, height=14):
