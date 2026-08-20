@@ -31,6 +31,9 @@ GLOW_FRACTION = 1.5
 SHINY_GLOW = 0.56
 SPARKLE_COUNT = 7
 SPARKLE_TINT = "#fff4cf"
+# Screened near-white disappears on a light ground; there the sparkles multiply
+# in gold instead, reading as glints against the paper rather than light.
+SPARKLE_TINT_LIGHT = "#e3b93e"
 # Points are needle-thin: equal-width strokes read as plus signs, not sparkles.
 SPARKLE_WAIST = 0.10
 SPARKLE_BLUR = 0.002
@@ -69,7 +72,7 @@ def _star(x, y, size, waist):
     ]
 
 
-def _sparkles(seed, width, height, cx, cy, short, footprint):
+def _sparkles(seed, width, height, cx, cy, short, footprint, tint=SPARKLE_TINT):
     """A deterministic ring of sparkles around the creature at (cx, cy).
 
     Seeded by the Pokemon, so the same shiny always sparkles the same way -- a
@@ -81,7 +84,7 @@ def _sparkles(seed, width, height, cx, cy, short, footprint):
     """
     digest = hashlib.sha256(("sparkle:%s" % seed).encode()).digest()
     args = ["-size", "%dx%d" % (width, height), "xc:none",
-            "-fill", SPARKLE_TINT, "-stroke", "none"]
+            "-fill", tint, "-stroke", "none"]
     base = short * SPARKLE_SIZE
     clearance = short * SPARKLE_CLEARANCE
     hx, hy = footprint
@@ -127,7 +130,15 @@ def _footprint(artwork, short):
     return w * scale / 2, h * scale / 2
 
 
-def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
+# Light mode's halo multiplies at lower strength instead of screening: screen
+# brightens, which is invisible against a near-white ground, while multiply
+# reads as a soft tinted shadow behind the creature.
+LIGHT_GLOW = 0.30
+LIGHT_SHINY_GLOW = 0.40
+
+
+def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None,
+           mode="dark"):
     """Build the wallpaper. `artwork` may be None -- the ground stands alone.
 
     `sparkle` is the seed for a shiny day's sparkles; None leaves them out.
@@ -140,10 +151,16 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
     """
     short = min(width, height)
     final_path, out_path = out_path, atomic.image_scratch(out_path)
-    if sparkle is not None:
+    light = mode == "light"
+    halo_compose = "multiply" if light else "screen"
+    if light:
+        glow = LIGHT_SHINY_GLOW if sparkle is not None else LIGHT_GLOW
+    elif sparkle is not None:
         glow = SHINY_GLOW
     ground = colors["darker_background"]
-    top = _shift(colors["dark_background"], dl=0.04, dc=0.008)
+    top = _shift(colors["dark_background"],
+                 dl=0.03 if light else 0.04,
+                 dc=-0.004 if light else 0.008)
 
     # Offsets are from the canvas centre, since that is what -gravity Center
     # measures from.
@@ -163,7 +180,7 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
              "-alpha", "set", "-channel", "A",
              "-evaluate", "multiply", "%.3f" % glow, "+channel", ")",
              "-gravity", "Center", "-geometry", "%+d%+d" % (dx, dy),
-             "-compose", "screen", "-composite"]
+             "-compose", halo_compose, "-composite"]
 
     if artwork:
         # Trim the padding, then scale to a fixed pixel area. `N@` is
@@ -175,13 +192,15 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None):
                  "-compose", "over", "-composite"]
 
     if sparkle is not None:
-        # Screened over the ground, ringing the creature rather than covering it.
+        # Composited over the ground, ringing the creature rather than
+        # covering it.
         footprint = (_footprint(artwork, short) if artwork
                      else (short * ARTWORK_FRACTION / 2,) * 2)
+        tint = SPARKLE_TINT_LIGHT if light else SPARKLE_TINT
         args += ["("] + _sparkles(sparkle, width, height, cx, cy, short,
-                                  footprint) + [
+                                  footprint, tint) + [
                  ")", "-gravity", "NorthWest", "-geometry", "+0+0",
-                 "-compose", "screen", "-composite"]
+                 "-compose", halo_compose, "-composite"]
 
     # JPEG q92 over lossless PNG, tried and rolled back: PNG with a Lanczos
     # upscale and dithered 8-bit gradients was technically cleaner but read

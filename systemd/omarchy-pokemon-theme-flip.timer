@@ -1,0 +1,16 @@
+[Unit]
+Description=Flip the Pokemon theme between light and dark at the day boundaries
+
+[Timer]
+# The default light-from / dark-from times. With mode = "dark" or "light" the
+# run is a no-op ("already current"); with mode = "auto" it retints. Changed
+# times in config.toml need these lines changed too -- systemd cannot read the
+# config -- so install.sh links this file where a drop-in can override it.
+OnCalendar=*-*-* 08:00:00
+OnCalendar=*-*-* 20:00:00
+# Catch up after suspend: waking at 09:30 should already be light.
+Persistent=true
+Unit=omarchy-pokemon-theme.service
+
+[Install]
+WantedBy=timers.target

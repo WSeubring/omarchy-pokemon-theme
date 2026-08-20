@@ -9,8 +9,11 @@ UNIT_DIR="$HOME/.config/systemd/user"
 PLUGIN_ID="pokemon.background"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 
-systemctl --user disable --now omarchy-pokemon-theme.timer 2>/dev/null
-rm -f "$UNIT_DIR/omarchy-pokemon-theme.timer" "$UNIT_DIR/omarchy-pokemon-theme.service"
+systemctl --user disable --now omarchy-pokemon-theme.timer \
+  omarchy-pokemon-theme-flip.timer 2>/dev/null
+rm -f "$UNIT_DIR/omarchy-pokemon-theme.timer" \
+  "$UNIT_DIR/omarchy-pokemon-theme-flip.timer" \
+  "$UNIT_DIR/omarchy-pokemon-theme.service"
 systemctl --user daemon-reload
 rm -f "$HOME/.config/omarchy/hooks/theme-set.d/theme-set"
 

@@ -15,8 +15,40 @@ it was derived from and computed once per Pokemon, ever.
 import os
 import re
 import subprocess
+import sys
+import urllib.error
+import urllib.request
 
+import xdg
 from oklch import hex_to_oklch
+
+URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
+       "/sprites/pokemon/other/official-artwork/%s%d.png")
+# Outside the theme directory on purpose: `omarchy-theme-set` copies the whole
+# theme into a staging dir on every apply, and a growing cache would be copied
+# along with it.
+CACHE = xdg.cache("artwork")
+
+
+def fetch(dex_id, is_shiny=False):
+    """Return a cached artwork path, or None if it cannot be had."""
+    os.makedirs(CACHE, exist_ok=True)
+    slug = "%d%s" % (dex_id, "-shiny" if is_shiny else "")
+    path = os.path.join(CACHE, "%s.png" % slug)
+    if os.path.exists(path) and os.path.getsize(path) > 0:
+        return path
+    try:
+        url = URL % ("shiny/" if is_shiny else "", dex_id)
+        with urllib.request.urlopen(url, timeout=20) as resp:
+            data = resp.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print("artwork unavailable (%s)" % exc, file=sys.stderr)
+        return None
+    tmp = path + ".part"
+    with open(tmp, "wb") as fh:
+        fh.write(data)
+    os.replace(tmp, path)
+    return path
 
 # Enough bins to separate a body colour from its outline and highlights, few
 # enough that a body does not fragment into six shades of itself.

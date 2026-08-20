@@ -11,6 +11,7 @@ comments and any keys this version does not know about survive being edited.
 import os
 import tomllib
 
+import palette
 import xdg
 
 PATH = xdg.config("config.toml")
@@ -26,6 +27,19 @@ TEMPLATE = """\
 # 14 -- about once a fortnight. Set it to 4096 for canonical full odds, which
 # works out to roughly once a decade.
 # shiny-odds = 14
+
+# Colour scheme: "dark" (default), "light", "auto" to follow the clock, or
+# "pokemon" to let the day's creature decide -- a bright accent (Pikachu,
+# Mew) gets the light theme, everything else stays dark.
+# mode = "auto"
+
+# When mode = "auto": light from this time, dark from that time (HH:MM).
+# light-from = "08:00"
+# dark-from = "20:00"
+
+# Colour intensity, a chroma multiplier from 0.4 (near-monochrome) to 1.6
+# (saturated). Applies to both dark and light palettes.
+# intensity = 1.0
 """
 
 
@@ -63,15 +77,54 @@ def positive_int(key, default):
     return value
 
 
+def mode():
+    """"dark", "light", "auto" or "pokemon" from the config; else "dark"."""
+    value = str(read().get("mode", "")).strip().lower()
+    if value in ("dark", "light", "auto", "pokemon"):
+        return value
+    if value:
+        print('ignoring mode = %r in %s: '
+              'want "dark", "light", "auto" or "pokemon"' % (value, PATH))
+    return "dark"
+
+
+def flip_time(key, default):
+    """An "HH:MM" from the config as (hour, minute), or `default`."""
+    value = read().get(key)
+    if value is None:
+        value = default
+    try:
+        hour, minute = (int(v) for v in str(value).split(":"))
+        if 0 <= hour < 24 and 0 <= minute < 60:
+            return hour, minute
+    except ValueError:
+        pass
+    print("ignoring %s = %r in %s: want HH:MM" % (key, value, PATH))
+    return tuple(int(v) for v in default.split(":"))
+
+
+def intensity():
+    """The chroma multiplier from the config, clamped to the safe range."""
+    value = read().get("intensity", 1.0)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        print("ignoring intensity = %r in %s: want a number" % (value, PATH))
+        return 1.0
+    return palette.clamp_intensity(float(value))
+
+
 def set_key(key, value):
     """Set `key`, preserving the rest of the file.
 
-    Whole numbers are written bare and everything else quoted, so a value written
+    Numbers are written bare and everything else quoted, so a value written
     here reads back as the type it was set as -- a quoted "4096" would come back
-    a string and be rejected by positive_int().
+    a string and be rejected by positive_int(), a quoted "1.3" by intensity().
     """
-    if isinstance(value, int) and not isinstance(value, bool):
+    if isinstance(value, bool):
+        rendered = '%s = "%s"' % (key, value)
+    elif isinstance(value, int):
         rendered = "%s = %d" % (key, value)
+    elif isinstance(value, float):
+        rendered = "%s = %s" % (key, ("%.2f" % value).rstrip("0").rstrip("."))
     else:
         rendered = '%s = "%s"' % (key, value)
     kept, replaced = [], False

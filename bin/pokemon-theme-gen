@@ -12,9 +12,7 @@ import random
 import shutil
 import subprocess
 import sys
-import urllib.error
-import urllib.request
-from datetime import date
+from datetime import date, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "lib"))
@@ -34,12 +32,6 @@ import xdg  # noqa: E402
 from oklch import hex_to_oklch  # noqa: E402
 
 SLUG = "pokemon"
-ARTWORK_URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
-               "/sprites/pokemon/other/official-artwork/%s%d.png")
-# Artwork lives outside the theme directory on purpose: `omarchy-theme-set`
-# copies the whole theme into a staging dir on every apply, and a growing cache
-# would be copied along with it.
-CACHE = xdg.cache("artwork")
 # Composited wallpapers, keyed by what they are made of. Rendering one takes a
 # couple of seconds at desktop resolution, which is long enough to see: the menu
 # closes, the previous Pokemon is still on screen, and only then does the theme
@@ -58,10 +50,59 @@ WALLPAPER_CACHE_SIZE = 120
 BACKGROUNDS = os.path.join(ROOT, "backgrounds")
 
 
-def background_path(dex_id, is_shiny, width, height):
+def variant_slug(is_shiny, mode, intensity):
+    """The palette-affecting knobs, as a filename fragment.
+
+    The wallpaper is a pure function of artwork + palette, so everything that
+    changes the palette has to be in the cache key or a mode flip would serve
+    yesterday's colours from cache.
+    """
+    parts = []
+    if is_shiny:
+        parts.append("-shiny")
+    if mode == "light":
+        parts.append("-light")
+    if intensity != 1.0:
+        parts.append("-i%s" % ("%.2f" % intensity).rstrip("0").rstrip("."))
+    return "".join(parts)
+
+
+def background_path(dex_id, variant, width, height):
     """The theme's single wallpaper file for this Pokemon at this size."""
     return os.path.join(BACKGROUNDS, "%d%s-%dx%d.jpg"
-                        % (dex_id, "-shiny" if is_shiny else "", width, height))
+                        % (dex_id, variant, width, height))
+
+
+def resolve_mode(now=None, accent_source=None, configured=None):
+    """The mode to generate in: the config's word, with "auto" told the time
+    and "pokemon" told the day's accent. `configured` overrides the config
+    (that is --mode).
+
+    Auto flips to light at light-from and back to dark at dark-from. An
+    inverted pair (dark-from before light-from) means the light window wraps
+    midnight, which is what the arithmetic below already gives.
+
+    Pokemon mode goes light when the accent -- the creature's dominant artwork
+    colour, its type colour as the fallback -- is bright. No accent at all
+    stays dark.
+    """
+    configured = configured or config.mode()
+    if configured == "pokemon":
+        if not accent_source:
+            return "dark"
+        L = hex_to_oklch(accent_source)[0]
+        return "light" if L >= palette.LIGHT_ACCENT_L else "dark"
+    if configured != "auto":
+        return configured
+    now = now or datetime.now()
+    minutes = now.hour * 60 + now.minute
+    light_from = config.flip_time("light-from", "08:00")
+    dark_from = config.flip_time("dark-from", "20:00")
+    start = light_from[0] * 60 + light_from[1]
+    end = dark_from[0] * 60 + dark_from[1]
+    if start <= end:
+        return "light" if start <= minutes < end else "dark"
+    return "light" if minutes >= start or minutes < end else "dark"
 
 # Yaru ships a fixed set of accent hues; pick whichever sits closest to the
 # day's hue so the icon theme moves with the palette instead of staying put.
@@ -91,27 +132,11 @@ def load(name):
 
 def artwork_for(dex_id, is_shiny=False):
     """Return a cached artwork path, or None if it cannot be had."""
-    os.makedirs(CACHE, exist_ok=True)
-    slug = "%d%s" % (dex_id, "-shiny" if is_shiny else "")
-    path = os.path.join(CACHE, "%s.png" % slug)
-    if os.path.exists(path) and os.path.getsize(path) > 0:
-        return path
-    try:
-        url = ARTWORK_URL % ("shiny/" if is_shiny else "", dex_id)
-        with urllib.request.urlopen(url, timeout=20) as resp:
-            data = resp.read()
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        print("artwork unavailable (%s); rendering ground only" % exc,
-              file=sys.stderr)
-        return None
-    tmp = path + ".part"
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-    os.replace(tmp, path)
-    return path
+    return artwork.fetch(dex_id, is_shiny)
 
 
-def wallpaper_for(dex_id, is_shiny, colors, width, height):
+def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
+                  variant=""):
     """Put the wallpaper for this Pokemon in place, rendering it only if new.
 
     The composition is a pure function of the artwork and the palette, and both
@@ -121,18 +146,19 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height):
     the inode.
     """
     cached = os.path.join(WALLPAPERS, "%d%s-%dx%d.jpg"
-                          % (dex_id, "-shiny" if is_shiny else "", width, height))
+                          % (dex_id, variant, width, height))
     if os.path.exists(cached) and os.path.getsize(cached) > 0:
         os.utime(cached, None)
     else:
         os.makedirs(WALLPAPERS, exist_ok=True)
         wallpaper.render(artwork_for(dex_id, is_shiny), colors, cached,
                          width, height,
-                         sparkle="%d-shiny" % dex_id if is_shiny else None)
+                         sparkle="%d-shiny" % dex_id if is_shiny else None,
+                         mode=mode)
 
     _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
 
-    background = background_path(dex_id, is_shiny, width, height)
+    background = background_path(dex_id, variant, width, height)
     link = atomic.scratch(background)
     os.makedirs(BACKGROUNDS, exist_ok=True)
     if os.path.exists(link):
@@ -237,6 +263,9 @@ def main():
                     help="write the background section with motion switched off")
     ap.add_argument("--no-lock-sync", action="store_true",
                     help="leave the lock screen to roll its own Pokemon")
+    ap.add_argument("--mode", choices=("dark", "light", "auto", "pokemon"),
+                    help="colour scheme for this run, overriding the config; "
+                         "the config's own mode (default dark) rules otherwise")
     ap.add_argument("--force", action="store_true",
                     help="regenerate even if today's theme is already written")
     args = ap.parse_args()
@@ -297,39 +326,55 @@ def main():
     else:
         width, height = screen_size()
 
-    # The name is part of the check, not just the date: editing `pokemon` in the
-    # config by hand should take effect on the next run rather than waiting for
-    # tomorrow or needing --force.
-    # `os.path.exists` guards a state file that outlived its wallpaper.
-    if not args.force and state.matches(args.date, name, choice.shiny) \
-            and (args.no_wallpaper
-                 or os.path.exists(background_path(dex_id, choice.shiny,
-                                                   width, height))):
-        print("%s already current: %s; nothing to do" % (args.date, name))
-        return
-
-    # Fetched before the palette rather than with the wallpaper: the creature's
-    # own colours are the palette's starting point, so the download has to have
-    # happened by now. It is cached, so a second run costs nothing.
+    # Fetched before the early-out rather than with the wallpaper: the
+    # creature's own colours are the palette's starting point, and in
+    # "pokemon" mode the accent decides light-vs-dark, which the early-out
+    # itself compares against. Cached, so a second run costs nothing.
     art = artwork_for(dex_id, choice.shiny)
     accent_source = None
     if art and not args.type_hue:
         accent_source = artwork.cached(art, art.rsplit(".", 1)[0] + ".accent")
 
-    colors = palette.build(type_colors, kinds, accent_source)
+    # Resolved every run rather than cached: with mode = "auto" the same
+    # invocation gives different answers at 07:59 and 08:01, which is exactly
+    # how the flip timer turns into a retint.
+    mode = resolve_mode(configured=args.mode,
+                        accent_source=accent_source
+                        or type_colors[kinds[0]])
+    intensity = config.intensity()
+    variant = variant_slug(choice.shiny, mode, intensity)
+
+    # The name is part of the check, not just the date: editing `pokemon` in the
+    # config by hand should take effect on the next run rather than waiting for
+    # tomorrow or needing --force. The mode is part of it for the same reason --
+    # the flip timer's run must read as "not current".
+    # `os.path.exists` guards a state file that outlived its wallpaper.
+    if not args.force and state.matches(args.date, name, choice.shiny, mode) \
+            and (args.no_wallpaper
+                 or os.path.exists(background_path(dex_id, variant,
+                                                   width, height))):
+        print("%s already current: %s (%s); nothing to do"
+              % (args.date, name, mode))
+        return
+
+    colors = palette.build(type_colors, kinds, accent_source,
+                           mode=mode, intensity=intensity)
     header = "# Generated by omarchy-pokemon-theme -- do not edit by hand.\n" \
-             "# %s: #%d %s%s (%s), accent from %s\n" \
+             "# %s: #%d %s%s (%s), accent from %s, %s%s\n" \
              % (args.date, dex_id, name, " shiny" if choice.shiny else "",
-                "/".join(kinds), "artwork" if accent_source else "type")
+                "/".join(kinds), "artwork" if accent_source else "type",
+                mode,
+                "" if intensity == 1.0 else ", intensity %.2g" % intensity)
 
     # The wallpaper takes a couple of seconds to composite, and until every file
     # agrees the desktop is a mix of two themes. So the slow work happens before
     # anything the desktop reads is touched, and the files land together.
     if not args.no_wallpaper:
-        wallpaper_for(dex_id, choice.shiny, colors, width, height)
+        wallpaper_for(dex_id, choice.shiny, colors, width, height,
+                      mode=mode, variant=variant)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
-                palette.to_toml(colors, header))
+                palette.to_toml(colors, header, mode))
     atomic.text(os.path.join(ROOT, "icons.theme"),
                 icon_theme(colors["accent"]) + "\n")
 
@@ -338,7 +383,7 @@ def main():
     # about Discord, and Vencord hot-reloads a changed theme file on its own.
     # No client installed means no files, and nothing to clean up later.
     for path in vesktop.targets():
-        atomic.text(path, vesktop.css(colors, header))
+        atomic.text(path, vesktop.css(colors, header, mode))
 
     # Pin omarchy-lock-pokemon to the same Pokemon, so unlocking shows the one
     # already on the desktop. A user who prefers a random lock sets
@@ -363,11 +408,12 @@ def main():
         atomic.text(lock_path,
                     lockscreen.section(colors, name, header, choice.shiny))
 
-    state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny)
+    state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny,
+                mode)
 
-    print("%s  #%d %s%s (%s)  accent %s  [%s]"
+    print("%s  #%d %s%s (%s)  accent %s  %s  [%s]"
           % (args.date, dex_id, name, " SHINY" if choice.shiny else "",
-             "/".join(kinds), colors["accent"], source))
+             "/".join(kinds), colors["accent"], mode, source))
 
     if not args.no_apply:
         apply_theme()

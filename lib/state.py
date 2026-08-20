@@ -18,10 +18,11 @@ PATH = xdg.state("current")
 
 
 def read():
-    """Return (day, name, shiny, why), with None for anything not on file.
+    """Return (day, name, shiny, mode, why), with None for anything not on file.
 
-    Tolerates the three-field file written by earlier versions: an upgrade should
-    not force a regeneration, it should just decide nothing is shiny yet.
+    Tolerates the shorter files written by earlier versions: an upgrade should
+    not force a regeneration, it should just decide nothing is shiny yet (three
+    fields) or that the mode was dark (four fields).
     """
     try:
         with open(PATH) as fh:
@@ -30,9 +31,11 @@ def read():
         parts = []
     if len(parts) == 3:
         parts.insert(2, "normal")
-    parts += [None] * (4 - len(parts))
-    day, pokemon, shiny, why = parts[:4]
-    return day, pokemon, shiny == "shiny", why
+    if len(parts) == 4:
+        parts.insert(3, "dark")
+    parts += [None] * (5 - len(parts))
+    day, pokemon, shiny, mode, why = parts[:5]
+    return day, pokemon, shiny == "shiny", mode, why
 
 
 def name():
@@ -40,14 +43,15 @@ def name():
     return read()[1]
 
 
-def matches(day, pokemon, is_shiny):
-    """True if this exact day, Pokemon and finish is what is already on file."""
-    stamp, current, current_shiny, _ = read()
-    return stamp == day and current == pokemon and current_shiny == is_shiny
+def matches(day, pokemon, is_shiny, mode="dark"):
+    """True if this exact day, Pokemon, finish and mode is already on file."""
+    stamp, current, current_shiny, current_mode, _ = read()
+    return (stamp == day and current == pokemon
+            and current_shiny == is_shiny and current_mode == mode)
 
 
-def write(day, pokemon, why, is_shiny=False):
+def write(day, pokemon, why, is_shiny=False, mode="dark"):
     os.makedirs(os.path.dirname(PATH), exist_ok=True)
     with open(PATH, "w") as fh:
-        fh.write("%s %s %s %s\n"
-                 % (day, pokemon, "shiny" if is_shiny else "normal", why))
+        fh.write("%s %s %s %s %s\n"
+                 % (day, pokemon, "shiny" if is_shiny else "normal", mode, why))
