@@ -104,6 +104,12 @@
   .checks .repolink { color: var(--fg-dim); text-decoration: none;
                       font-size: 12px; padding: 0 2px; }
   .checks .repolink:hover { color: var(--accent); }
+  .checks .inst {
+    margin-left: auto; font-size: 9px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fg-dim);
+    border: 1px solid var(--bg-lighter); border-radius: 999px;
+    padding: 2px 8px;
+  }
 
   footer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
   #install {
@@ -198,7 +204,11 @@
   }
   #done .card h2 { letter-spacing: .25em; text-transform: uppercase;
                    font-size: 16px; color: var(--fg-bright); }
-  #done .card p { color: var(--fg-dim); margin-top: 10px; }
+  #done .card p { color: var(--fg-dim); margin-top: 14px; }
+  #done ul { list-style: none; margin-top: 16px; text-align: left;
+             display: inline-block; }
+  #done li { padding: 3px 0; }
+  #done li::before { content: "✓ "; color: var(--green); font-weight: 700; }
 
   @media (max-width: 900px) {
     body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -294,19 +304,21 @@
     <div class="ty" id="dexty"></div>
   </div>
   <div id="done"><div class="card">
-    <h2 id="donehead">Installing…</h2>
-    <p id="donetext">Back to the terminal — the installer takes it from here.</p>
+    <h2 id="donehead"></h2>
+    <ul id="donelist"></ul>
+    <p id="donetext"></p>
   </div></div>
 </main>
 
 <script>
 const BOOT = /*__BOOT__*/null;
 const seed = new URLSearchParams(location.search);
+const CUR = BOOT.current, INST = BOOT.installed;
 const S = {
-  mode: seed.get("mode") || "dark",
-  intensity: parseFloat(seed.get("intensity") || "1.0"),
-  creature: seed.get("creature") || BOOT.samples[0].name,
-  starter: "", starterName: "",
+  mode: seed.get("mode") || CUR.mode,
+  intensity: parseFloat(seed.get("intensity") || CUR.intensity),
+  creature: seed.get("creature") || CUR.pinned || BOOT.samples[0].name,
+  starter: CUR.pinned ? "pin" : "", starterName: CUR.pinned,
   info: null,          // /api/pokemon payload for the creature
   face: "dark",        // which palette the stage shows right now
   wallFlip: false,
@@ -345,10 +357,16 @@ function setWall(url) {
 }
 
 async function refresh() {
-  const q = `name=${S.creature}&mode=${S.mode}&intensity=${S.intensity}`;
+  const q = `name=${S.creature}&intensity=${S.intensity}`;
   const res = await fetch(`/api/pokemon?${q}`);
   if (!res.ok) return;
   S.info = await res.json();
+  render();
+}
+
+/* Repaint from the cached payload -- it carries both palettes, so mode and
+   day/night flips need no round-trip; only the wallpaper is fetched. */
+function render() {
   const m = shownMode();
   applyPalette(S.info.palettes[m]);
   setWall(`/wallpaper?name=${S.creature}&mode=${m}&intensity=${S.intensity}`);
@@ -374,7 +392,7 @@ $("#modes").addEventListener("click", (e) => {
   S.mode = opt.dataset.mode;
   document.querySelectorAll("#modes .opt").forEach(o => o.classList.toggle("on", o === opt));
   if (S.mode === "auto") S.face = new Date().getHours() >= 8 && new Date().getHours() < 20 ? "light" : "dark";
-  refresh();
+  render();
 });
 
 /* day/night toggle for auto */
@@ -382,7 +400,7 @@ $("#daynight").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   S.face = b.dataset.v;
   document.querySelectorAll("#daynight button").forEach(x => x.classList.toggle("on", x === b));
-  refresh();
+  render();
 });
 
 /* intensity */
@@ -414,7 +432,7 @@ $("#search").addEventListener("keydown", async (e) => {
   if (e.key !== "Enter") return;
   const name = e.target.value.trim().toLowerCase();
   if (!name) return;
-  const res = await fetch(`/api/pokemon?name=${encodeURIComponent(name)}&mode=${S.mode}&intensity=${S.intensity}`);
+  const res = await fetch(`/api/pokemon?name=${encodeURIComponent(name)}&intensity=${S.intensity}`);
   if (!res.ok) { $("#searchmsg").textContent = `no "${name}" in the dex`; return; }
   $("#searchmsg").textContent = "";
   e.target.value = "";
@@ -440,11 +458,31 @@ $("#install").onclick = async () => {
     WITH_LOCK: $("#x_lock").checked, WITH_GREETING: $("#x_greet").checked,
   };
   await fetch("/api/finish", { method: "POST", body: JSON.stringify(answers) });
+  // The server hands these answers to the installer and exits, so this page
+  // cannot watch the install itself -- confirm the locked-in choices instead
+  // of pretending to spin.
+  $("#donehead").textContent = "✓ Choices locked in";
+  const rows = [
+    `colour scheme: ${answers.MODE}`,
+    `intensity: ${answers.INTENSITY}`,
+    answers.POKEMON ? `partner pokemon: ${answers.POKEMON} (pinned)`
+                    : "wild encounters: a new pokemon each midnight",
+  ];
+  for (const [key, label] of [["WITH_ANIMATION", "animated particles"],
+                              ["WITH_MENU", "menu picker"],
+                              ["WITH_LOCK", "lock screen"],
+                              ["WITH_GREETING", "terminal greeting"]])
+    if (answers[key]) rows.push(label);
+  $("#donelist").innerHTML = rows.map(r => `<li>${r}</li>`).join("");
+  $("#donetext").textContent =
+    "Installing in the terminal now — the desktop retints when it lands. " +
+    "This tab can be closed.";
   $("#done").style.display = "grid";
 };
 $("#cancel").onclick = async () => {
   await fetch("/api/cancel", { method: "POST", body: "{}" });
   $("#donehead").textContent = "Cancelled";
+  $("#donelist").innerHTML = "";
   $("#donetext").textContent = "Nothing was installed. You can close this tab.";
   $("#done").style.display = "grid";
 };
@@ -459,7 +497,28 @@ if (S.mode === "auto")
 document.querySelector(`#modes .opt[data-mode="${S.mode}"]`).classList.add("on");
 $("#intensity").value = S.intensity;
 $("#ival").textContent = S.intensity.toFixed(2);
-document.querySelector('#starter button[data-v=""]').classList.add("on");
+document.querySelector(`#starter button[data-v="${S.starter}"]`).classList.add("on");
+
+/* Extras open on the machine's truth: an installed component shows as such
+   and cannot be unticked here -- this installer adds, uninstall.sh removes. */
+for (const [id, key, fresh] of [["x_anim", "animation", true],
+                                ["x_menu", "menu", true],
+                                ["x_lock", "lock", true],
+                                ["x_greet", "greeting", false]]) {
+  const box = document.getElementById(id);
+  if (INST[key]) {
+    box.checked = true; box.disabled = true;
+    const tag = document.createElement("span");
+    tag.className = "inst"; tag.textContent = "installed";
+    box.parentElement.appendChild(tag);
+  } else {
+    box.checked = fresh;
+  }
+}
+if (INST.theme)
+  document.querySelector("h1 small").textContent =
+    "already installed · adjust and re-apply";
+
 drawChips();
 refresh();
 </script>

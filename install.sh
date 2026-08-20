@@ -200,6 +200,41 @@ for tool in magick python3 jq; do
 done
 command -v omarchy-theme-set >/dev/null || die "this is not an Omarchy system"
 
+# One ✓/- line per component, from the artefacts actually on the machine.
+# Used before the questions (so the wizard opens on the truth) and after the
+# work (so "done" means something concrete).
+status_report() {
+  python3 - "$REPO" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1] + "/lib")
+import config
+import installed
+import state
+have = installed.detect()
+labels = (
+    ("theme", "theme linked and scheduled"),
+    ("animation", "animated particles on the wallpaper"),
+    ("menu", "pokemon picker in the omarchy menu"),
+    ("lock", "pokemon theme lock screen"),
+    ("greeting", "pokemon greeting in the terminal"),
+)
+for key, label in labels:
+    print("  %s %s" % ("\033[32m✓\033[0m" if have[key] else "-", label))
+day, name, shiny, mode, _ = state.read()
+if name:
+    print("  today: %s%s, %s mode, intensity %.2g"
+          % (name, " (shiny!)" if shiny else "", mode or "dark",
+             config.intensity()))
+print("  config: mode = %s  (%s)" % (config.mode(), config.PATH))
+PY
+}
+
+if [[ -e $THEME_DIR ]]; then
+  say "already on this machine -- current state:"
+  status_report
+  echo
+fi
+
 # The theme has to be reachable at the slug omarchy will look up. A checkout
 # already in place (via `omarchy theme install`) is left alone; anywhere else is
 # linked, so edits in the working copy take effect with no reinstall.
@@ -315,9 +350,10 @@ for dir in "$HOME/.config/vesktop" \
   fi
 done
 
+echo
+say "installed -- the desktop you are looking at is today's Pokemon:"
+status_report
 cat <<'DONE'
-
-Done. Today's Pokemon is live.
 
   omarchy theme set pokemon              switch to it (regenerates for today)
   bin/pokemon-theme-gen --force          roll it again now
