@@ -59,8 +59,8 @@ def hsl_to_rgb(h, s, light):
     return tuple(round((v + m) * 255) for v in (r, g, b))
 
 
-def check(label, colors, failures):
-    for step, value in vesktop._primary(colors).items():
+def check(label, colors, failures, mode="dark"):
+    for step, value in vesktop._primary(colors, mode).items():
         if not HEX.match(value):
             failures.append("%s: primary-%d is %r" % (label, step, value))
     brand = vesktop._brand(colors["accent"])
@@ -70,7 +70,7 @@ def check(label, colors, failures):
     if brand[500] != colors["accent"]:
         failures.append("%s: brand-500 is not the accent" % label)
 
-    base = dict(vesktop.base16(colors))
+    base = dict(vesktop.base16(colors, mode))
     for slot, value in base.items():
         if not HEX.match(value):
             failures.append("%s: %s is %r" % (label, slot, value))
@@ -78,7 +78,7 @@ def check(label, colors, failures):
     # The HSL twins Discord composes translucent layers from must decode to
     # the same pixels as their hex siblings, or the translucent UI sits on a
     # subtly different colour than the opaque UI.
-    for step, value in vesktop._primary(colors).items():
+    for step, value in vesktop._primary(colors, mode).items():
         m = HSL.match(vesktop._hsl(value))
         if not m:
             failures.append("%s: primary-%d hsl malformed" % (label, step))
@@ -92,7 +92,9 @@ def check(label, colors, failures):
     # base0F is this vendored file's body text, base04 its headers and
     # secondary text -- both must read like text, not like decoration.
     # base03 is the muted tier and only clears the UI floor, same as
-    # Discord's own muted grey.
+    # Discord's own muted grey. The accent floor mirrors validate_contrast:
+    # light mode trades base0D down to 3.0 by design, and the vendored
+    # mapping spends it as UI chrome anyway.
     bg = base["base01"]
     for slot, floor in (("base03", MIN_UI), ("base04", MIN_TEXT),
                         ("base05", MIN_TEXT), ("base06", MIN_TEXT),
@@ -103,15 +105,25 @@ def check(label, colors, failures):
             failures.append("%s: %s contrast %.2f < %.2f on base01"
                             % (label, slot, ratio, floor))
 
-    # base00-02 are the surface ladder, base03-07 the text ladder; each must
-    # keep its ordering or Discord's panels and text tiers collapse into one
-    # another.
+    # base00-02 are the surface ladder, base03-07 the text ladder. In dark
+    # mode both rise together; in light mode text runs the other way and the
+    # surfaces cluster at the top (lighter_background is the *panel*, a step
+    # below the background), so the honest invariant there is separation:
+    # every surface lighter than every text tier.
     surfaces = [relative_luminance(base["base0%d" % i]) for i in range(3)]
     texts = [relative_luminance(base["base0%d" % i]) for i in range(3, 8)]
-    if surfaces != sorted(surfaces):
-        failures.append("%s: base00-02 surface ladder not monotonic" % label)
-    if texts != sorted(texts):
-        failures.append("%s: base03-07 text ladder not monotonic" % label)
+    if mode == "light":
+        if texts != sorted(texts, reverse=True):
+            failures.append("%s: base03-07 text ladder not monotonic" % label)
+        if min(surfaces) <= max(texts):
+            failures.append("%s: a text tier is lighter than a surface"
+                            % label)
+    else:
+        if surfaces != sorted(surfaces):
+            failures.append("%s: base00-02 surface ladder not monotonic"
+                            % label)
+        if texts != sorted(texts):
+            failures.append("%s: base03-07 text ladder not monotonic" % label)
 
 
 def check_assembly(failures):
@@ -155,20 +167,24 @@ def main():
 
     check_assembly(failures)
 
-    for name, kinds in types.items():
-        check(name, palette.build(type_colors, kinds), failures)
-    print("checked %d type palettes" % len(types))
+    for mode in ("dark", "light"):
+        for name, kinds in types.items():
+            check("%s %s" % (name, mode),
+                  palette.build(type_colors, kinds, mode=mode),
+                  failures, mode)
+        print("checked %d type palettes (%s)" % (len(types), mode))
 
-    swept = 0
-    for hue in range(0, 360, 2):
-        for L, C in SWEEP_LC:
-            source = oklch_to_hex(L, C, float(hue))
-            for kinds in SWEEP_KINDS:
-                label = "artwork %s L%.2f C%.2f" % (source, L, C)
-                check(label, palette.build(type_colors, kinds, source),
-                      failures)
-                swept += 1
-    print("swept %d artwork palettes" % swept)
+        swept = 0
+        for hue in range(0, 360, 2):
+            for L, C in SWEEP_LC:
+                source = oklch_to_hex(L, C, float(hue))
+                for kinds in SWEEP_KINDS:
+                    label = "artwork %s L%.2f C%.2f %s" % (source, L, C, mode)
+                    check(label,
+                          palette.build(type_colors, kinds, source, mode=mode),
+                          failures, mode)
+                    swept += 1
+        print("swept %d artwork palettes (%s)" % (swept, mode))
 
     if failures:
         for f in failures[:40]:

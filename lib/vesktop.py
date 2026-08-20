@@ -52,27 +52,44 @@ PRIMARY_L = {
     700: 0.172, 730: 0.155, 800: 0.135, 900: 0.115,
 }
 
+# Light mode's scale, anchored the same way to NEUTRALS_LIGHT (600 =
+# background 0.930, 630 = dark_background 0.895, 700 = darker_background
+# 0.870); the low steps become the text end and the high end stays a shade
+# below white so Discord's chrome keeps the palette's pastel cast.
+PRIMARY_L_LIGHT = {
+    130: 0.235, 160: 0.270, 200: 0.310, 230: 0.345, 260: 0.380,
+    300: 0.430, 330: 0.510, 360: 0.580, 400: 0.660, 430: 0.720,
+    460: 0.760, 500: 0.795, 530: 0.825, 560: 0.880, 600: 0.930,
+    630: 0.895, 645: 0.890, 660: 0.885, 670: 0.880, 680: 0.876,
+    700: 0.870, 730: 0.855, 800: 0.840, 900: 0.820,
+}
+
 BRAND_STEPS = (100, 130, 160, 200, 230, 260, 300, 330, 360, 400, 430, 460,
                500, 530, 560, 600, 630, 660, 700, 730, 760, 800, 830, 860,
                900)
 
 
-def _neutral_chroma(L):
+def _neutral_chroma(L, mode="dark"):
     """Chroma for a neutral at lightness L.
 
     NEUTRALS_DARK's ladder rises from C 0.015 at its darkest to 0.050 at its
     lightest; a straight line through those endpoints keeps the generated
-    steps on the same tint curve as the palette they sit between.
+    steps on the same tint curve as the palette they sit between. The light
+    ladder runs the other way: its pastel surfaces sit near 0.035 and its
+    text end near 0.065, so the line flips.
     """
     t = max(0.0, min(1.0, (L - 0.17) / 0.70))
+    if mode == "light":
+        return 0.065 - 0.030 * t
     return 0.015 + 0.035 * t
 
 
-def _primary(colors):
+def _primary(colors, mode="dark"):
     """{step: hex} for the neutral scale, tinted with the background's hue."""
+    ladder = PRIMARY_L_LIGHT if mode == "light" else PRIMARY_L
     hue = hex_to_oklch(colors["background"])[2]
-    return {step: oklch_to_hex(L, _neutral_chroma(L), hue)
-            for step, L in PRIMARY_L.items()}
+    return {step: oklch_to_hex(L, _neutral_chroma(L, mode), hue)
+            for step, L in ladder.items()}
 
 
 def _brand(accent):
@@ -128,7 +145,7 @@ def _text_shade(colors, L):
     return oklch_to_hex(L, C, H)
 
 
-def base16(colors):
+def base16(colors, mode="dark"):
     """(slot, hex) rows for the vendored base theme, in slot order.
 
     Slot meanings read from how the vendored CSS actually spends them, which
@@ -142,12 +159,15 @@ def base16(colors):
     --text-primary), so it has to be the brightest foreground, not brown.
     """
     c = colors
+    # The two generated text greys flip with the ground: dim-but-readable on
+    # dark is 0.66/0.74, on light it is 0.60/0.50 (base04 the more legible).
+    shade03, shade04 = (0.600, 0.500) if mode == "light" else (0.660, 0.740)
     return (
         ("base00", c["dark_background"]),
         ("base01", c["background"]),
         ("base02", c["lighter_background"]),
-        ("base03", _text_shade(c, 0.660)),
-        ("base04", _text_shade(c, 0.740)),
+        ("base03", _text_shade(c, shade03)),
+        ("base04", _text_shade(c, shade04)),
         ("base05", c["foreground"]),
         ("base06", c["light_foreground"]),
         ("base07", c["bright_foreground"]),
@@ -168,7 +188,7 @@ def _vendored():
         return fh.read()
 
 
-def css(colors, header=""):
+def css(colors, header="", mode="dark"):
     """The full theme file. `header` is the colors.toml provenance header."""
     lines = [
         "/**",
@@ -184,7 +204,7 @@ def css(colors, header=""):
     lines.append("")
 
     lines.append(":root {")
-    for step, value in sorted(_primary(colors).items()):
+    for step, value in sorted(_primary(colors, mode).items()):
         lines.append("  --primary-%d: %s;" % (step, value))
         lines.append("  --primary-%d-hsl: %s;" % (step, _hsl(value)))
     for step, value in sorted(_brand(colors["accent"]).items()):
@@ -203,7 +223,7 @@ def css(colors, header=""):
     # invalid and the stock colour showing.
     lines.append("")
     lines.append(":root {")
-    for slot, value in base16(colors):
+    for slot, value in base16(colors, mode):
         lines.append("  --%s: %s;" % (slot, value))
     ramp = ("dark_background", "background", "lighter_background",
             "selection", "muted", "foreground", "light_foreground",
@@ -246,7 +266,7 @@ def css(colors, header=""):
         ("--brand-experiment", colors["accent"]),
     )
     lines.append("")
-    lines.append(".theme-dark, .visual-refresh {")
+    lines.append(".theme-dark, .theme-light, .visual-refresh {")
     for key, value in fixes:
         lines.append("  %s: %s !important;" % (key, value))
     lines.append("}")
