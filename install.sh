@@ -7,9 +7,9 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 THEME_DIR="$HOME/.config/omarchy/themes/pokemon"
 UNIT_DIR="$HOME/.config/systemd/user"
-# Omarchy namespaces user plugins as <username>.<id>, and the directory name has
-# to match the id in the manifest.
-PLUGIN_ID="${USER:-$(id -un)}.background"
+# A fixed id, matching pokemon.lock from the companion repo. The directory name
+# has to match the id in the manifest.
+PLUGIN_ID="pokemon.background"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 
 WITH_ANIMATION=1

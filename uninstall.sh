@@ -6,7 +6,7 @@ set -uo pipefail
 
 THEME_DIR="$HOME/.config/omarchy/themes/pokemon"
 UNIT_DIR="$HOME/.config/systemd/user"
-PLUGIN_ID="${USER:-$(id -un)}.background"
+PLUGIN_ID="pokemon.background"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 
 systemctl --user disable --now omarchy-pokemon-theme.timer 2>/dev/null
