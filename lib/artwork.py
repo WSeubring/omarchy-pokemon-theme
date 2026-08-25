@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -30,13 +31,23 @@ URL = ("https://raw.githubusercontent.com/PokeAPI/sprites/master"
 CACHE = xdg.cache("artwork")
 
 
-def accent(dex_id, is_shiny=False):
+def accent(dex_id, is_shiny=False, path=None):
     """The creature's cached artwork accent, fetching artwork if needed.
-    None -- meaning "fall back to the type colour" -- when offline."""
-    path = fetch(dex_id, is_shiny)
+    None -- meaning "fall back to the type colour" -- when offline.
+
+    `path` is artwork already in hand, so a caller that needs both the file and
+    the colour does not pay for -- or report -- a second failed fetch."""
+    path = path or fetch(dex_id, is_shiny)
     if not path:
         return None
     return cached(path, path.rsplit(".", 1)[0] + ".accent")
+
+
+# The daily timer catches up as soon as the machine wakes, which is often before
+# DNS answers, and a fetch that fails there costs the day its creature. So a
+# failed attempt is retried a few times rather than given up on.
+ATTEMPTS = 4
+RETRY_WAIT = 10
 
 
 def fetch(dex_id, is_shiny=False):
@@ -46,13 +57,17 @@ def fetch(dex_id, is_shiny=False):
     path = os.path.join(CACHE, "%s.png" % slug)
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
-    try:
-        url = URL % ("shiny/" if is_shiny else "", dex_id)
-        with urllib.request.urlopen(url, timeout=20) as resp:
-            data = resp.read()
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        print("artwork unavailable (%s)" % exc, file=sys.stderr)
-        return None
+    url = URL % ("shiny/" if is_shiny else "", dex_id)
+    for attempt in range(1, ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=20) as resp:
+                data = resp.read()
+            break
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            if attempt == ATTEMPTS:
+                print("artwork unavailable (%s)" % exc, file=sys.stderr)
+                return None
+            time.sleep(RETRY_WAIT)
     tmp = path + ".part"
     with open(tmp, "wb") as fh:
         fh.write(data)

@@ -220,7 +220,7 @@ labels = (
 )
 for key, label in labels:
     print("  %s %s" % ("\033[32m✓\033[0m" if have[key] else "-", label))
-day, name, shiny, mode, _ = state.read()
+day, name, shiny, mode = state.read()[:4]
 if name:
     print("  today: %s%s, %s mode, intensity %.2g"
           % (name, " (shiny!)" if shiny else "", mode or "dark",

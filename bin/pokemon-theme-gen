@@ -12,6 +12,7 @@ import random
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import date, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -129,7 +130,7 @@ def load(name):
 
 
 def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
-                  variant=""):
+                  variant="", art=None):
     """Put the wallpaper for this Pokemon in place, rendering it only if new.
 
     The composition is a pure function of the artwork and the palette, and both
@@ -137,30 +138,51 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
     building twice. Hardlinked into the theme rather than copied: `omarchy-theme-set`
     copies the theme into a staging directory anyway, so nothing downstream shares
     the inode.
+
+    `art` is the artwork this render gets, or None when the host could not be
+    reached. A creature-less render is a failure the desktop can live with for
+    one run, so it still lands -- but it never enters the cache, which is keyed
+    by Pokemon and would otherwise serve the empty ground back for months.
     """
-    cached = os.path.join(WALLPAPERS, "%d%s-%dx%d.jpg"
-                          % (dex_id, variant, width, height))
-    if os.path.exists(cached) and os.path.getsize(cached) > 0:
-        os.utime(cached, None)
-    else:
-        os.makedirs(WALLPAPERS, exist_ok=True)
-        wallpaper.render(artwork.fetch(dex_id, is_shiny), colors, cached,
-                         width, height,
-                         sparkle="%d-shiny" % dex_id if is_shiny else None,
-                         mode=mode)
-
-    _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
-
     background = background_path(dex_id, variant, width, height)
     link = atomic.scratch(background)
     os.makedirs(BACKGROUNDS, exist_ok=True)
     if os.path.exists(link):
         os.remove(link)
-    try:
-        os.link(cached, link)
-    except OSError:
-        # Different filesystems, or a filesystem without hardlinks.
-        shutil.copyfile(cached, link)
+
+    sparkle = "%d-shiny" % dex_id if is_shiny else None
+    if art is None:
+        # Rendered somewhere nothing scans for images: the placement name in
+        # backgrounds/ ends in ".new" so no wallpaper chooser offers it, and
+        # ImageMagick needs the extension to know what to write.
+        with tempfile.TemporaryDirectory() as scratch:
+            drawn = os.path.join(scratch, "ground.jpg")
+            wallpaper.render(None, colors, drawn, width, height,
+                             sparkle=sparkle, mode=mode)
+            shutil.move(drawn, link)
+    else:
+        # The accent is in the key, not just the variant: it decides every
+        # colour in the composition, and it changes when the artwork accent
+        # becomes available where a type colour stood in. Without it a render
+        # made from the fallback palette is served back for the Pokemon's real
+        # one, which is how a creature-less wallpaper outlived its cause.
+        cached = os.path.join(WALLPAPERS, "%d%s-%s-%dx%d.jpg"
+                              % (dex_id, variant, colors["accent"].lstrip("#"),
+                                 width, height))
+        if os.path.exists(cached) and os.path.getsize(cached) > 0:
+            os.utime(cached, None)
+        else:
+            os.makedirs(WALLPAPERS, exist_ok=True)
+            wallpaper.render(art, colors, cached, width, height,
+                             sparkle=sparkle, mode=mode)
+
+        _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
+
+        try:
+            os.link(cached, link)
+        except OSError:
+            # Different filesystems, or a filesystem without hardlinks.
+            shutil.copyfile(cached, link)
     atomic.commit(link, background)
 
     # Back to one file: the new wallpaper lands first, then the old ones go, so
@@ -323,8 +345,9 @@ def main():
     # creature's own colours are the palette's starting point, and in
     # "pokemon" mode the accent decides light-vs-dark, which the early-out
     # itself compares against. Cached, so a second run costs nothing.
-    accent_source = None if args.type_hue else artwork.accent(dex_id,
-                                                              choice.shiny)
+    art = artwork.fetch(dex_id, choice.shiny)
+    accent_source = None if args.type_hue or art is None \
+        else artwork.accent(dex_id, choice.shiny, art)
 
     # Resolved every run rather than cached: with mode = "auto" the same
     # invocation gives different answers at 07:59 and 08:01, which is exactly
@@ -340,7 +363,8 @@ def main():
     # tomorrow or needing --force. The mode is part of it for the same reason --
     # the flip timer's run must read as "not current".
     # `os.path.exists` guards a state file that outlived its wallpaper.
-    if not args.force and state.matches(args.date, name, choice.shiny, mode) \
+    if not args.force and state.matches(args.date, name, choice.shiny, mode,
+                                        art is not None) \
             and (args.no_wallpaper
                  or os.path.exists(background_path(dex_id, variant,
                                                    width, height))):
@@ -362,7 +386,7 @@ def main():
     # anything the desktop reads is touched, and the files land together.
     if not args.no_wallpaper:
         wallpaper_for(dex_id, choice.shiny, colors, width, height,
-                      mode=mode, variant=variant)
+                      mode=mode, variant=variant, art=art)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
                 palette.to_toml(colors, header, mode))
@@ -400,7 +424,7 @@ def main():
                     lockscreen.section(colors, name, header, choice.shiny))
 
     state.write(args.date, name, pins.SLUGS.get(source, "roll"), choice.shiny,
-                mode)
+                mode, art is not None)
 
     print("%s  #%d %s%s (%s)  accent %s  %s  [%s]"
           % (args.date, dex_id, name, " SHINY" if choice.shiny else "",

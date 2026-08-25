@@ -8,6 +8,14 @@ After=graphical-session.target
 
 [Service]
 Type=oneshot
+# The artwork is fetched over the network and the timer catches up the moment a
+# laptop wakes, which is before DNS answers -- and a fetch that fails there
+# leaves the day's wallpaper as bare ground with no Pokemon on it. There is no
+# network-online.target in the user manager to wait on, so wait on
+# NetworkManager instead; the leading "-" keeps the run going where nm-online
+# is missing or the wait times out, and the generator retries on its own.
+ExecStartPre=-/usr/bin/nm-online -q -t 60
 ExecStart=%h/.config/omarchy/themes/pokemon/bin/pokemon-theme-gen
-# The wallpaper render and a possible artwork download are the slow parts.
-TimeoutStartSec=180
+# The connectivity wait, a retried artwork download and the wallpaper render,
+# end to end and worst case.
+TimeoutStartSec=360
