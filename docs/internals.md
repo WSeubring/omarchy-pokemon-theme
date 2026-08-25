@@ -92,6 +92,15 @@ The daily roll is a systemd user timer at 00:05 with `Persistent=true`, so a
 laptop that was asleep across midnight catches up when it wakes. Switching to
 the theme by hand also regenerates via the theme-set hook.
 
+A background run writes the day's files whatever theme is in force, but only
+*applies* them when `~/.local/state/omarchy/current/theme.name` already says
+`pokemon` -- applying is `omarchy-theme-set pokemon`, which would otherwise drag
+someone off the theme they chose at every midnight. Picking, rerolling or
+pinning by hand applies regardless, since that is a request to see it, and
+switching back to the theme picks up today's files through the hook. `--apply`
+overrides the rule outright, which is what `install.sh` uses: installing is a
+request to see it too.
+
 ## Shiny mechanics
 
 The unit of the odds is a day, not an encounter; the canonical 1-in-4096 would
@@ -194,6 +203,17 @@ Artwork is fetched once per Pokémon from the
 set` copies the whole theme into a staging dir on every apply. With no network
 the palette and the ground still render; only the creature is missing.
 
+That fallback used to be permanent. The catch-up run fires the moment a laptop
+wakes, which is before DNS answers, so the day's *first* run was the one likely
+to fetch nothing -- and its creature-less composite went into the cache under
+the Pokémon's own key, while the state file recorded the day as done. Every
+later run then reported "already current" over an empty wallpaper. Three things
+keep it from happening: the service waits on `nm-online` and the fetch retries,
+a render made without artwork is placed but never cached, and the state file
+carries whether the creature made it in, so the next run rebuilds rather than
+early-outing. The cache key also carries the accent, because the palette built
+from a type-colour fallback is not the palette built from the artwork.
+
 The wallpaper is JPEG q92 (which ImageMagick keeps at 4:4:4 chroma). Lossless
 PNG with a Lanczos upscale and dithered gradients was tried and rolled back:
 technically cleaner, but the encoder's slight softening reads better on the
@@ -230,6 +250,12 @@ key reaches the roll. That last one caught a real bug: `set_key` quoted
 everything it wrote, so `shiny-odds = "4096"` came back a string and was
 silently ignored.
 
+`validate_state.py` covers the two ways a day can go wrong quietly: a
+creature-less wallpaper standing until tomorrow because the state file called
+the day done, and a background run applying the theme over whatever the user
+actually chose. It also holds the state file's shell contract -- the `why` slug
+stays the last field, since the menu's `checked` condition anchors to it.
+
 `validate_menu.py` earns its keep for a different reason: `omarchy-menu.jsonc`
 is shared with every other tool that adds rows, so one bad character does not
 break four rows, it breaks the file, and with it every other tool's entries. It
@@ -252,7 +278,7 @@ which is the specific mistake that caused exactly that.
 | `lib/artwork.py` | The creature's dominant colour, quantized and cached |
 | `lib/atomic.py` | Replace-by-rename, and the two temp-name traps |
 | `lib/shiny.py` | The odds, and the roll against them |
-| `lib/state.py` | What is written out now: day, Pokémon, and why |
+| `lib/state.py` | What is written out now: day, Pokémon, artwork, and why |
 | `lib/xdg.py` | The config, state and cache directories |
 | `lib/tomlout.py` | Shared rendering for the generated TOML sections |
 | `data/dex.json` | National dex order, so a name gives an artwork id offline |
@@ -265,6 +291,7 @@ which is the specific mistake that caused exactly that.
 | `bin/pokemon-theme-pick` | The native menu picker over all 905 |
 | `bin/pokemon-theme-menu-install` | Splices the menu rows in and out |
 | `tests/run` | Runs every validator, reporting all failures |
+| `tests/validate_state.py` | The state file's contract, and when a run applies |
 
 `colors.toml`, `icons.theme`, `shell.lock.toml` and the single wallpaper under
 `backgrounds/` are generated. The wallpaper and the lock file are gitignored; a
