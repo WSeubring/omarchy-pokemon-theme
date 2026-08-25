@@ -335,7 +335,9 @@ if [[ -n $POKEMON ]] && (( PIN )); then
 elif [[ -n $POKEMON ]]; then
   "$REPO/bin/pokemon-theme-gen" --pokemon "$POKEMON" --force
 else
-  "$REPO/bin/pokemon-theme-gen" --force
+  # --apply because installing is a request to see it: the generator otherwise
+  # leaves whatever theme is active alone.
+  "$REPO/bin/pokemon-theme-gen" --force --apply
 fi
 
 # The generation above already wrote pokemon.css into any Vesktop/Vencord it

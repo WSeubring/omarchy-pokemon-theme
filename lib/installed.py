@@ -14,6 +14,10 @@ THEME_LINK = os.path.join(HOME, ".config/omarchy/themes/pokemon")
 BACKGROUND_PLUGIN = os.path.join(HOME, ".config/omarchy/plugins/pokemon.background")
 LOCK_PLUGIN = os.path.join(HOME, ".config/omarchy/plugins/pokemon.lock")
 MENU_FILE = os.path.join(HOME, ".config/omarchy/extensions/omarchy-menu.jsonc")
+# The theme omarchy has applied, which is not the same question as which theme
+# this repo last generated files for: the desktop can be wearing Tokyo Night
+# while today's Pokemon sits ready on disk.
+ACTIVE_THEME = os.path.join(HOME, ".local/state/omarchy/current/theme.name")
 
 
 def _menu_rows():
@@ -22,6 +26,15 @@ def _menu_rows():
             return "pokemon-theme" in fh.read()
     except OSError:
         return False
+
+
+def active_theme():
+    """The slug of the theme omarchy has applied, or None if it cannot be read."""
+    try:
+        with open(ACTIVE_THEME) as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
 
 
 def detect():

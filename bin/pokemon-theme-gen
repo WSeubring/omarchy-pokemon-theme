@@ -22,6 +22,7 @@ import ambient  # noqa: E402
 import artwork  # noqa: E402
 import atomic  # noqa: E402
 import config  # noqa: E402
+import installed  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
 import pins  # noqa: E402
@@ -226,6 +227,20 @@ def screen_size(fallback=(2560, 1600)):
     return int(best["width"]), int(best["height"])
 
 
+def should_apply(active, chose):
+    """Whether this run may re-apply the theme, and so change what is on screen.
+
+    Applying is how the desktop retints, but `omarchy-theme-set pokemon` also
+    *switches* to this theme -- so a background run that applies unconditionally
+    drags someone off Tokyo Night every midnight. A run only applies when the
+    desktop already wears this theme, or when the user asked for a Pokemon by
+    hand (`chose`), which is a request to see it. `active` unreadable means
+    omarchy has not recorded a theme yet, where applying is how the first one
+    lands.
+    """
+    return chose or active is None or active == SLUG
+
+
 def apply_theme():
     """Re-apply the theme so omarchy regenerates every dependent config.
 
@@ -271,6 +286,9 @@ def main():
                     help="drop both pins and go back to the daily roll")
     ap.add_argument("--no-apply", action="store_true",
                     help="write the files but do not re-apply the theme")
+    ap.add_argument("--apply", action="store_true",
+                    help="apply even if another theme is active, switching to "
+                         "this one; what the installer does")
     ap.add_argument("--no-wallpaper", action="store_true",
                     help="only regenerate colors.toml")
     ap.add_argument("--size", help="wallpaper size as WxH")
@@ -430,8 +448,17 @@ def main():
           % (args.date, dex_id, name, " SHINY" if choice.shiny else "",
              "/".join(kinds), colors["accent"], mode, source))
 
+    # The files are written whatever theme is active; only applying them can
+    # change what is on screen, and that is what should_apply decides.
+    chose = bool(args.apply or requested or args.pin or args.unpin
+                 or force_shiny is not None)
+    active = installed.active_theme()
     if not args.no_apply:
-        apply_theme()
+        if should_apply(active, chose):
+            apply_theme()
+        else:
+            print("%s is the active theme; wrote the files without applying"
+                  % active)
 
 
 if __name__ == "__main__":
