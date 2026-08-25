@@ -18,6 +18,8 @@ and is skipped without it -- CI runners ship ImageMagick 6, whose binary is
 """
 
 import glob
+import importlib.machinery
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -97,9 +99,64 @@ def main():
     if leftovers:
         failures.append("render left files behind: %s" % ", ".join(leftovers))
 
+    failures += _cache_checks(sandbox, colors)
+
     print("checked the scratch names and one %dx%d render" % (320, 200))
     shutil.rmtree(sandbox, ignore_errors=True)
     return _report(failures)
+
+
+def _cache_checks(sandbox, colors):
+    """A creature-less render must never enter the wallpaper cache.
+
+    The cache is keyed by Pokemon, finish, palette and size -- not by whether
+    the artwork host answered. So a wallpaper composited while the fetch failed
+    is the bare ground, and caching it serves that back for as long as the entry
+    survives: months, on a machine that revisits the Pokemon.
+    """
+    failures = []
+    gen = _load_gen()
+    backgrounds = os.path.join(sandbox, "theme-backgrounds")
+    cache = os.path.join(sandbox, "wallpaper-cache")
+    os.makedirs(backgrounds)
+    os.makedirs(cache)
+    gen.BACKGROUNDS, gen.WALLPAPERS = backgrounds, cache
+
+    art = os.path.join(sandbox, "art.png")
+    subprocess.run(["magick", "-size", "64x64", "xc:none", "-fill", "#e8622a",
+                    "-draw", "circle 32,32 32,8", art], check=True)
+
+    placed = gen.wallpaper_for(157, False, colors, 320, 200, art=None)
+    if not os.path.exists(placed):
+        failures.append("a creature-less run placed no wallpaper")
+    if os.listdir(cache):
+        failures.append("a creature-less render was cached: %s"
+                        % ", ".join(os.listdir(cache)))
+
+    placed = gen.wallpaper_for(157, False, colors, 320, 200, art=art)
+    cached = os.listdir(cache)
+    if len(cached) != 1:
+        failures.append("a normal render cached %d files, expected 1"
+                        % len(cached))
+    if os.path.exists(placed) and os.path.getsize(placed) == 0:
+        failures.append("the placed wallpaper is empty")
+    leftovers = [name for name in os.listdir(backgrounds)
+                 if name != os.path.basename(placed)]
+    if leftovers:
+        failures.append("the backgrounds directory kept %s"
+                        % ", ".join(leftovers))
+    return failures
+
+
+def _load_gen():
+    """Import the generator as a module; it is a script, so it has no name."""
+    path = os.path.join(ROOT, "bin", "pokemon-theme-gen")
+    spec = importlib.util.spec_from_loader(
+        "pokemon_theme_gen",
+        importlib.machinery.SourceFileLoader("pokemon_theme_gen", path))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _report(failures):
