@@ -248,6 +248,7 @@ else
   say "linked $THEME_DIR -> $REPO"
 fi
 
+
 say "installing the theme-set hook"
 omarchy hook install theme-set "$REPO/hooks/theme-set" >/dev/null
 say "installed ~/.config/omarchy/hooks/theme-set.d/theme-set"
@@ -265,23 +266,54 @@ systemctl --user list-timers 'omarchy-pokemon-theme*' --no-pager | sed -n '2,3p'
 
 if (( WITH_ANIMATION )); then
   say "installing the ambient background plugin as $PLUGIN_ID"
+  # An earlier install copied the plugin instead of linking it, and a copy goes
+  # stale the moment this repo moves on. It is ours by id, so replacing it needs
+  # no permission -- anything else at that path is someone else's and is left.
   if [[ -e $PLUGIN_DIR && ! -L $PLUGIN_DIR ]]; then
-    die "$PLUGIN_DIR exists and is not a symlink; move it aside first"
+    if [[ $(jq -r '.id // ""' "$PLUGIN_DIR/manifest.json" 2>/dev/null) == "$PLUGIN_ID" ]]; then
+      rm -rf "$PLUGIN_DIR"
+    else
+      die "$PLUGIN_DIR exists and is not a symlink; move it aside first"
+    fi
   fi
   mkdir -p "$(dirname "$PLUGIN_DIR")"
   ln -sfn "$REPO/plugins/background" "$PLUGIN_DIR"
-  # The manifest id has to match the directory name. It is generated rather
-  # than committed so the repo does not carry one user's username.
-  jq --arg id "$PLUGIN_ID" '.id = $id' "$REPO/plugins/background/manifest.json.in" \
-    >"$REPO/plugins/background/manifest.json"
 
-  # Two plugins claiming the background layer would both draw. The clone carries
-  # clonedFrom, so IPC calls (including theme transitions) still route here.
+  # Enabling the clone is the whole handover. The shell reads `clonedFrom` from
+  # the manifest, disables omarchy.background itself, and records the clone in
+  # cloneSourceRestores so that disabling or removing it hands the desktop back.
+  # Disabling the stock renderer here first would skip that bookkeeping -- the
+  # shell only arms the restore while the source is still enabled -- and the
+  # handover would become one-way, which is a gray screen waiting to happen.
   omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
-  omarchy plugin disable omarchy.background >/dev/null 2>&1 || true
   omarchy plugin enable "$PLUGIN_ID" >/dev/null 2>&1 || true
-  say "disabled omarchy.background in favour of the clone"
+
+  # The stock renderer is off by now, so a clone the shell will not load means
+  # nothing is painting the desktop. Better to hand it straight back and say so
+  # than to leave someone looking at gray.
+  # Asking the shell needs the shell: during a headless or TTY install there is
+  # nothing to answer, and no answer is not the same as a bad answer.
+  if ! plugin_list=$(omarchy plugin list --json 2>/dev/null); then
+    say "installed $PLUGIN_ID; the shell will pick it up on its next start"
+  elif jq -e --arg id "$PLUGIN_ID" 'any(.[]; .id == $id and .enabled)' \
+      >/dev/null <<<"$plugin_list"; then
+    say "handed the background layer to $PLUGIN_ID (reversible: omarchy plugin disable $PLUGIN_ID)"
+  else
+    omarchy plugin enable omarchy.background >/dev/null 2>&1 || true
+    echo "the shell did not load $PLUGIN_ID; kept the stock renderer." >&2
+    echo "  check it with: omarchy plugin validate $PLUGIN_DIR" >&2
+  fi
 fi
+
+# Older installs disabled omarchy.background by hand before enabling the clone,
+# which left the shell with no record of how to hand the desktop back. Repairing
+# it is enabling the stock renderer and then the clone, in that order.
+python3 - "$REPO" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1] + "/lib")
+import renderer
+renderer.repair()
+PY
 
 if (( WITH_MENU )); then
   # The rows carry a `when` condition, so they stay hidden unless this theme is
