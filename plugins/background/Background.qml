@@ -69,15 +69,11 @@ Item {
     ? root.token("effect-secondary-tint", "#ffffff")
     : root.effectTint
 
-  // A wallpaper nobody can see is not worth animating. Windows on the focused
-  // workspace mean the desktop is covered, and "pause" here means the shapes
-  // stop being rendered at all rather than merely being hidden.
-  readonly property bool desktopCovered: {
-    if (!flagToken("pause-when-covered", true)) return false
-    var ws = Hyprland.focusedWorkspace
-    if (!ws || !ws.toplevels) return false
-    return ws.toplevels.values.length > 0
-  }
+  // A wallpaper nobody can see is not worth animating. Whether it is covered is
+  // a per-monitor question though -- an empty second screen should keep moving
+  // while the one being worked on is full of windows -- so the gate itself
+  // lives on the panel below and this is only the switch for it.
+  readonly property bool pauseWhenCovered: flagToken("pause-when-covered", true)
 
   // Battery policy: "never", "low" (under the threshold), or "always".
   readonly property string batteryPolicy: token("pause-on-battery", "low").toLowerCase()
@@ -96,8 +92,10 @@ Item {
     return batteryLevel <= numberToken("pause-on-battery-below", 30)
   }
 
-  readonly property bool effectsRunning:
-    effectsEnabled && effectIntensity > 0 && !desktopCovered && !batteryPaused
+  // Everything that is true of the whole desktop at once. Each panel ANDs this
+  // with its own screen's coverage to decide whether to render.
+  readonly property bool effectsAllowed:
+    effectsEnabled && effectIntensity > 0 && !batteryPaused
 
   // Effects.js is tuned for the lock screen's card. A monitor is one to two
   // orders of magnitude more pixels, so the same counts and sizes read as a few
@@ -270,14 +268,15 @@ Item {
   // tokens and every gate transition to the shell journal, which is the quickest
   // way to answer "why is nothing moving".
   //   journalctl --user -f | grep ambient-bg
-  function dbg(why) { if (!flagToken("debug", false)) return
+  function dbg(why, extra) { if (!flagToken("debug", false)) return
     console.log("[ambient-bg] " + why
     + " enabled=" + effectsEnabled + " primary=" + primaryKind
     + " secondary=" + secondaryKind + " intensity=" + effectIntensity
-    + " tint=" + effectTint + " covered=" + desktopCovered
+    + " tint=" + effectTint
     + " onBattery=" + onBattery + " level=" + Math.round(batteryLevel)
-    + " batteryPaused=" + batteryPaused + " RUNNING=" + effectsRunning) }
-  onEffectsRunningChanged: dbg("gate-changed")
+    + " batteryPaused=" + batteryPaused + " ALLOWED=" + effectsAllowed
+    + (extra || "")) }
+  onEffectsAllowedChanged: dbg("gate-changed")
   Component.onCompleted: { refreshBackground(); dbg("loaded") }
 
   Variants {
@@ -304,6 +303,31 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+
+      // Hyprland.monitorFor() is a plain call, so a binding on it would never
+      // re-run when monitors arrive late or get hotplugged. Walking the model
+      // makes the lookup depend on it and re-resolve when it changes.
+      readonly property var hyprMonitor: {
+        var list = Hyprland.monitors.values
+        for (var i = 0; i < list.length; i++)
+          if (list[i].name === panel.screen.name) return list[i]
+        return null
+      }
+
+      // Windows on this monitor's active workspace mean this wallpaper is
+      // covered; the other screens are none of its business. Unknown counts as
+      // uncovered: before Hyprland answers, moving is the better guess.
+      readonly property bool covered: {
+        if (!root.pauseWhenCovered) return false
+        var ws = panel.hyprMonitor ? panel.hyprMonitor.activeWorkspace : null
+        if (!ws || !ws.toplevels) return false
+        return ws.toplevels.values.length > 0
+      }
+
+      readonly property bool effectsRunning: root.effectsAllowed && !panel.covered
+      onEffectsRunningChanged: root.dbg("panel-gate",
+        " screen=" + panel.screen.name + " covered=" + panel.covered
+        + " RUNNING=" + panel.effectsRunning)
 
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
@@ -382,7 +406,7 @@ Item {
       // rather than animating them behind an opacity of zero.
       Loader {
         anchors.fill: parent
-        active: root.effectsRunning && root.secondaryKind !== "none"
+        active: panel.effectsRunning && root.secondaryKind !== "none"
         sourceComponent: Ambient {
           kind: root.secondaryKind
           variant: root.effectVariant
@@ -394,7 +418,7 @@ Item {
 
       Loader {
         anchors.fill: parent
-        active: root.effectsRunning && root.primaryKind !== "none"
+        active: panel.effectsRunning && root.primaryKind !== "none"
         sourceComponent: Ambient {
           kind: root.primaryKind
           variant: root.effectVariant

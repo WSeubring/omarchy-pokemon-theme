@@ -34,7 +34,7 @@ All under `[background]`, in a theme's `shell.background.toml` or in
 | `effect-count-scale` | `1.8` | Desktop bump: shapes per screen |
 | `effect-size-scale` | `1.4` | Desktop bump: shape size and wander |
 | `effect-tint` · `effect-secondary-tint` | theme accent | Shape colour |
-| `pause-when-covered` | `true` | Stop when the focused workspace has windows |
+| `pause-when-covered` | `true` | Stop on a monitor whose active workspace has windows |
 | `pause-on-battery` | `low` | `never`, `low`, or `always` |
 | `pause-on-battery-below` | `30` | The percentage `low` means |
 | `debug` | `false` | Log resolved tokens and gate transitions |
@@ -52,6 +52,17 @@ an empty workspace and never something you have to look around. Set both to
 
 When paused the `Loader`s are deactivated, so the shapes leave the scene graph
 entirely rather than animating unseen behind a zero opacity.
+
+Coverage is asked per monitor, not once for the desktop: an empty second screen
+keeps moving while the screen being worked on is full of windows. Each panel
+resolves its own Hyprland monitor out of `Hyprland.monitors`, reads that
+monitor's active workspace, and gates its own two `Loader`s. Only the master
+switch, the intensity and the battery policy are still decided once for
+everything. A monitor Hyprland has not answered for yet counts as uncovered.
+
+A monitor showing only a special workspace reads as uncovered, because
+`activeWorkspace` does not include special workspaces -- shapes will animate
+behind those windows.
 
 A background layer is awkward to introspect -- it sits under every window and has
 no chrome of its own -- so `debug = "true"` logs the resolved tokens and every
