@@ -130,6 +130,17 @@ with an ambient layer added; the wallpaper images, theme transition and reveal
 mask are upstream code untouched. Installing it disables the stock renderer,
 and `omarchy plugin enable omarchy.background` hands the desktop back.
 
+The handover belongs to the shell, not to us. `PluginRegistry` reads
+`clonedFrom` from the manifest, disables `omarchy.background` itself, and
+records the clone in `cloneSourceRestores` so that disabling or removing it
+gives the desktop back. It only arms that restore while the source is *still
+enabled*, so `install.sh` must not disable the stock renderer first --
+doing so made the handover one-way, and removing the clone then left nothing
+rendering the background at all: a flat gray desktop that survives a reboot and
+a theme switch. `lib/renderer.py` recognises both that state and the install it
+came from, and the generator repairs them on every run, including the runs that
+have nothing else to do.
+
 The generator writes `effects = "show"` into `shell.background.toml` unless run
 with `--no-animation`. Without the plugin the section is inert, so installing
 the plugin later needs no regeneration.
@@ -279,6 +290,7 @@ which is the specific mistake that caused exactly that.
 | `lib/atomic.py` | Replace-by-rename, and the two temp-name traps |
 | `lib/shiny.py` | The odds, and the roll against them |
 | `lib/state.py` | What is written out now: day, Pokémon, artwork, and why |
+| `lib/renderer.py` | Who is painting the desktop, and the two gray-screen repairs |
 | `lib/xdg.py` | The config, state and cache directories |
 | `lib/tomlout.py` | Shared rendering for the generated TOML sections |
 | `data/dex.json` | National dex order, so a name gives an artwork id offline |
@@ -292,6 +304,8 @@ which is the specific mistake that caused exactly that.
 | `bin/pokemon-theme-menu-install` | Splices the menu rows in and out |
 | `tests/run` | Runs every validator, reporting all failures |
 | `tests/validate_state.py` | The state file's contract, and when a run applies |
+| `tests/validate_renderer.py` | The shell configs that mean a gray desktop |
+| `tests/validate_fork.py` | Whether omarchy's background plugin has moved on |
 
 `colors.toml`, `icons.theme`, `shell.lock.toml` and the single wallpaper under
 `backgrounds/` are generated. The wallpaper and the lock file are gitignored; a
@@ -299,6 +313,25 @@ missing lock file only means the lock screen rolls its own Pokémon.
 `colors.toml` and `icons.theme` are committed, since a theme without
 `colors.toml` generates no configs at all, and a fresh clone should apply
 cleanly before the first run.
+
+That makes one repository rule load-bearing: **never commit a regenerated
+`colors.toml` or `icons.theme`.** `omarchy theme install` clones into
+`~/.config/omarchy/themes/`, `omarchy theme update` pulls every such clone, and
+the generator rewrites both files daily in that very directory. Git refuses a
+pull only when the incoming commit touches a file that is dirty locally -- so
+while upstream leaves those two alone, every clone pulls cleanly with the day's
+palette sitting in the worktree, and a single `chore: regenerate` commit breaks
+`omarchy theme update` for every installed clone until the user resolves it by
+hand. Neither `--assume-unchanged` nor `--skip-worktree` helps; both were tried,
+and git still refuses the merge.
+
+The other half of a gray desktop is `~/.local/state/omarchy/current/background`,
+the symlink the shell actually reads. `omarchy-theme-set` re-points it only when
+it finds an image in the staged theme, and this theme's wallpaper is gitignored
+-- so a first apply before anything has been generated leaves the link aimed at
+the staging directory the apply just deleted. The generator checks it after
+every apply and re-points it at the staged wallpaper when it resolves to
+nothing.
 
 The artwork is composited as its own layer rather than baked into the ground,
 which is what made the ambient plugin possible: the sprite stays addressable.

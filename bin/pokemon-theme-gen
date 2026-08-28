@@ -26,6 +26,7 @@ import installed  # noqa: E402
 import lockscreen  # noqa: E402
 import palette  # noqa: E402
 import pins  # noqa: E402
+import renderer  # noqa: E402
 import shiny  # noqa: E402
 import state  # noqa: E402
 import vesktop  # noqa: E402
@@ -265,6 +266,18 @@ def apply_theme():
     return True
 
 
+def heal(background):
+    """Undo the two quiet ways this theme leaves the desktop gray.
+
+    Both are states the desktop cannot recover from on its own: a background
+    plugin handover the shell was never told how to reverse, and a
+    current-background symlink pointing into a staging directory that an apply
+    has since deleted. Neither is visible in any output but the desktop itself.
+    """
+    renderer.repair()
+    renderer.repair_link(background)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--date", default=date.today().isoformat(),
@@ -388,6 +401,11 @@ def main():
                                                    width, height))):
         print("%s already current: %s (%s); nothing to do"
               % (args.date, name, mode))
+        # Still worth a look at who is painting the desktop: a broken handover
+        # or a symlink aimed at nothing leaves a gray screen that no amount of
+        # "nothing to do" repairs, and this run is the one that comes back
+        # around every day.
+        heal(background_path(dex_id, variant, width, height))
         return
 
     colors = palette.build(type_colors, kinds, accent_source,
@@ -456,6 +474,7 @@ def main():
     if not args.no_apply:
         if should_apply(active, chose):
             apply_theme()
+            heal(background_path(dex_id, variant, width, height))
         else:
             print("%s is the active theme; wrote the files without applying"
                   % active)
