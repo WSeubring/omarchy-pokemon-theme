@@ -180,6 +180,38 @@ Ambient motion pauses on its own when nobody can see it: whenever windows
 cover the desktop, and on low battery. See
 [plugins/background/README.md](plugins/background/README.md) for every token.
 
+## A gray desktop
+
+If the wallpaper is gone and the desktop is a flat gray, the image is almost
+certainly fine -- nothing is drawing it. Installing the ambient motion hands the
+background layer from Omarchy's own renderer to this theme's plugin, and
+versions of the installer before August 2026 handed it over in a way Omarchy
+could not take back, so anything that removed the plugin left neither renderer
+running. Nothing logs it, and a reboot keeps it.
+
+One command puts the desktop back:
+
+```bash
+omarchy plugin enable omarchy.background
+```
+
+That is Omarchy's stock wallpaper renderer, with no motion. To take the ambient
+one back as well -- this time reversibly:
+
+```bash
+omarchy plugin enable pokemon.background
+```
+
+Or re-run `./install.sh`, which repairs the handover and is what every daily run
+does from now on.
+
+Still gray with both of those done? Then it is the wallpaper after all, and the
+link the shell reads is pointing at a file that is no longer there:
+
+```bash
+~/.config/omarchy/themes/pokemon/bin/pokemon-theme-gen --force
+```
+
 ## More
 
 How the palette is built, why all 905 days stay readable, the test suite, and

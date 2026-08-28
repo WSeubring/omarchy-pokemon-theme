@@ -79,8 +79,16 @@ reload them.
 ## Reverting
 
 ```bash
-omarchy plugin enable omarchy.background   # back to the stock static renderer
+omarchy plugin disable pokemon.background  # back to the stock static renderer
 ```
+
+Enabling this plugin is what disables `omarchy.background`: the shell reads
+`clonedFrom` from the manifest, switches the source off, and records the
+handover so that disabling or removing this one gives the desktop back. Do not
+disable `omarchy.background` by hand first -- the shell only arms that restore
+while the source is still enabled, and without it the desktop is left with no
+background renderer at all. `omarchy plugin enable omarchy.background` is the
+way back from that state.
 
 To keep the plugin but stop the motion, set `effects = "hide"` under
 `[background]` in `~/.config/omarchy/shell.toml`.
