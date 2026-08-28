@@ -1,0 +1,11 @@
+# The upstream file this plugin was forked from, and the version it came from.
+# tests/validate_fork.py compares the installed copy against this and says so
+# when omarchy has moved on: the fork carries upstream's wallpaper handling
+# verbatim, and a rename in there is a plugin that will not load -- which, with
+# the stock renderer handed over, is a gray desktop with nothing in any log.
+#
+# Re-fork by re-applying the additive blocks onto the new upstream file and
+# updating the checksum here.
+path = /usr/share/omarchy/shell/plugins/background/Background.qml
+version = 4.0.1
+sha256 = 505c7d4af8323bdb201cd816aa8332248dcfd4c056ec8f64b5c0a2ae1776c58a
