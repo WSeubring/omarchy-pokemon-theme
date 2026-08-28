@@ -55,6 +55,8 @@ it falls back to a full-terminal wizard, then to plain prompts; all three ask
 the same things. Re-running it is safe: it opens on whatever is already
 installed and configured, and finishes with a checklist of what is in place.
 
+![The installer's setup page: colour scheme, intensity and extras on the left, the rendered wallpaper and terminal mockup on the right](docs/installer.jpg)
+
 It also offers the extras:
 
 - **Animated particles**: the day's types drive subtle motion behind the
@@ -168,7 +170,7 @@ theme writes:
 effects            = "hide"    # ambient motion off, plugin still installed
 effect-intensity   = 1.0      # default is 0.55
 pause-on-battery   = "never"  # default pauses when discharging below 30%
-pause-when-covered = "false"  # default pauses when windows cover the desktop
+pause-when-covered = "false"  # default pauses a screen its windows cover
 
 [lock]
 pokemon-name = ""             # lock screen rolls its own Pokémon again
