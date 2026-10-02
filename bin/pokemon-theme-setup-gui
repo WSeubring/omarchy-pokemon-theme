@@ -118,6 +118,7 @@ class Handler(BaseHTTPRequestHandler):
                         "mode": config.mode(),
                         "intensity": config.intensity(),
                         "pinned": config.pinned() or "",
+                        "caption": config.caption(),
                     },
                     "installed": installed.detect(),
                 }
@@ -212,7 +213,8 @@ def main():
     if not _answers.pop("__ok__", False):
         sys.exit(1)
     for key in ("MODE", "INTENSITY", "POKEMON", "PIN",
-                "WITH_ANIMATION", "WITH_MENU", "WITH_LOCK", "WITH_GREETING"):
+                "WITH_ANIMATION", "WITH_MENU", "WITH_LOCK", "WITH_GREETING",
+                "CAPTION"):
         value = _answers.get(key, "")
         if isinstance(value, bool):
             value = int(value)

@@ -30,6 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import atomic  # noqa: E402
+import config  # noqa: E402
 import palette  # noqa: E402
 import wallpaper  # noqa: E402
 
@@ -93,6 +94,33 @@ def main():
     wallpaper.render(None, colors, other, 320, 200, sparkle="94-shiny")
     if open(other, "rb").read() == open(shiny_a, "rb").read():
         failures.append("two different Pokemon sparkle identically")
+
+    # The caption draws something, and only when asked.
+    captioned = os.path.join(sandbox, "captioned.jpg")
+    wallpaper.render(None, colors, captioned, 320, 200,
+                     caption=wallpaper.label(131, "lapras"))
+    if open(captioned, "rb").read() == open(plain, "rb").read():
+        failures.append("a captioned render is identical to a bare one")
+    for dex_id, name, want in ((6, "charizard", "#006 Charizard"),
+                               (29, "nidoran-f", "#029 Nidoran\u2640"),
+                               (250, "ho-oh", "#250 Ho-Oh"),
+                               (785, "tapu-koko", "#785 Tapu Koko")):
+        if wallpaper.label(dex_id, name) != want:
+            failures.append("label for %s is %r, want %r"
+                            % (name, wallpaper.label(dex_id, name), want))
+
+    # On by default; a written false must read back as false, not as the
+    # string "False" (which is truthy).
+    config.PATH = os.path.join(sandbox, "config.toml")
+    if not config.caption():
+        failures.append("the caption is off without a config")
+    config.set_key("caption", False)
+    if config.caption():
+        failures.append("caption = false in the config was ignored")
+    gen = _load_gen()
+    if gen.variant_slug(False, "dark", 1.0, True) == \
+            gen.variant_slug(False, "dark", 1.0, False):
+        failures.append("toggling the caption keeps the wallpaper's name")
 
     leftovers = sorted(name for name in os.listdir(backgrounds)
                        if name != os.path.basename(target))

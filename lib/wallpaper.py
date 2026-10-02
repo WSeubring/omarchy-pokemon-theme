@@ -51,6 +51,29 @@ SPARKLE_DRIFT = 0.10
 # Screened at less than full strength: the point is a glint, not a light source.
 SPARKLE_OPACITY = 0.72
 
+# The dex number and name, small in the bottom-right corner: a caption, not a
+# title. Sized and inset by the short edge so it holds at any resolution.
+LABEL_SIZE = 0.016
+LABEL_MARGIN = 0.024
+
+# Names the dex slug cannot be title-cased into.
+SPECIAL_NAMES = {
+    "nidoran-f": "Nidoran\u2640",
+    "nidoran-m": "Nidoran\u2642",
+    "farfetchd": "Farfetch'd",
+    "sirfetchd": "Sirfetch'd",
+    "mr-mime": "Mr. Mime",
+    "mime-jr": "Mime Jr.",
+    "mr-rime": "Mr. Rime",
+    "flabebe": "Flab\u00e9b\u00e9",
+    "type-null": "Type: Null",
+    "ho-oh": "Ho-Oh",
+    "porygon-z": "Porygon-Z",
+    "jangmo-o": "Jangmo-o",
+    "hakamo-o": "Hakamo-o",
+    "kommo-o": "Kommo-o",
+}
+
 
 def _run(args):
     subprocess.run(args, check=True, capture_output=True)
@@ -110,6 +133,14 @@ def _sparkles(seed, width, height, cx, cy, short, footprint, tint=SPARKLE_TINT):
                    "%.2f" % SPARKLE_OPACITY, "+channel"]
 
 
+def label(dex_id, name):
+    """The caption for this Pokemon, e.g. "#006 Charizard"."""
+    # Any other hyphen is a space: Tapu Koko.
+    shown = SPECIAL_NAMES.get(name) or " ".join(
+        part.capitalize() for part in name.split("-"))
+    return "#%03d %s" % (dex_id, shown)
+
+
 def _footprint(artwork, short):
     """The placed sprite's half-width and half-height, in pixels.
 
@@ -138,10 +169,12 @@ LIGHT_SHINY_GLOW = 0.40
 
 
 def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None,
-           mode="dark"):
+           mode="dark", caption=None, font=None):
     """Build the wallpaper. `artwork` may be None -- the ground stands alone.
 
     `sparkle` is the seed for a shiny day's sparkles; None leaves them out.
+    `caption` is drawn small in the bottom-right corner, in `font` (a file or a
+    family ImageMagick knows) when given.
 
     One ImageMagick invocation, composited beside the destination and renamed into
     place. The layers were separate files once, which cost eight times as long:
@@ -201,6 +234,17 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None,
                                   footprint, tint) + [
                  ")", "-gravity", "NorthWest", "-geometry", "+0+0",
                  "-compose", halo_compose, "-composite"]
+
+    if caption:
+        # Drawn in the ground's muted foreground: readable when looked for,
+        # invisible otherwise. `-annotate` with SouthEast gravity measures its
+        # offset in from the corner, so no text metrics are needed.
+        margin = int(short * LABEL_MARGIN)
+        if font:
+            args += ["-font", font]
+        args += ["-gravity", "SouthEast", "-fill", colors["dark_foreground"],
+                 "-pointsize", "%d" % max(8, int(short * LABEL_SIZE)),
+                 "-annotate", "+%d+%d" % (margin, margin), caption]
 
     # JPEG q92 over lossless PNG, tried and rolled back: PNG with a Lanczos
     # upscale and dithered 8-bit gradients was technically cleaner but read
