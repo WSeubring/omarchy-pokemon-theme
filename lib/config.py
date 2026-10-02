@@ -40,6 +40,9 @@ TEMPLATE = """\
 # Colour intensity, a chroma multiplier from 0.4 (near-monochrome) to 1.6
 # (saturated). Applies to both dark and light palettes.
 # intensity = 1.0
+
+# The dex number and name, small in the wallpaper's bottom-right corner.
+# caption = true
 """
 
 
@@ -112,15 +115,25 @@ def intensity():
     return palette.clamp_intensity(float(value))
 
 
+def caption():
+    """Whether the wallpaper carries its dex caption; on unless turned off."""
+    value = read().get("caption", True)
+    if not isinstance(value, bool):
+        print("ignoring caption = %r in %s: want true or false" % (value, PATH))
+        return True
+    return value
+
+
 def set_key(key, value):
     """Set `key`, preserving the rest of the file.
 
-    Numbers are written bare and everything else quoted, so a value written
-    here reads back as the type it was set as -- a quoted "4096" would come back
-    a string and be rejected by positive_int(), a quoted "1.3" by intensity().
+    Numbers and booleans are written bare and everything else quoted, so a
+    value written here reads back as the type it was set as -- a quoted "4096"
+    would come back a string and be rejected by positive_int(), a quoted "1.3"
+    by intensity(), a quoted "true" by caption().
     """
     if isinstance(value, bool):
-        rendered = '%s = "%s"' % (key, value)
+        rendered = "%s = %s" % (key, "true" if value else "false")
     elif isinstance(value, int):
         rendered = "%s = %d" % (key, value)
     elif isinstance(value, float):

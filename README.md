@@ -70,7 +70,7 @@ It also offers the extras:
   via [pokedex-greeting](https://github.com/WSeubring/pokedex-greeting).
 
 Flags (`--mode=…`, `--intensity=…`, `--pokemon=… [--pin]`, `--no-animation`,
-`--no-menu`, `--no-lock`, `--no-greeting`, `--defaults`) or a non-interactive
+`--no-menu`, `--no-lock`, `--no-greeting`, `--no-caption`, `--defaults`) or a non-interactive
 run skip the questions. What this repo installed, `./uninstall.sh` removes;
 the two companions are their own repos and uninstall separately.
 
@@ -160,6 +160,7 @@ light-from = "08:00"  # auto mode: when the light theme takes over
 dark-from = "20:00"   # auto mode: when the dark theme returns
 intensity = 1.0       # colour intensity, 0.4 (near-mono) to 1.6 (saturated);
                       # chroma only, so readability is untouched
+caption = true        # "#006 Charizard", small in the wallpaper's corner
 ```
 
 Per-key overrides in `~/.config/omarchy/shell.toml` win over anything the

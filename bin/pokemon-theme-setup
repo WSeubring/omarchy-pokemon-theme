@@ -292,6 +292,10 @@ class Wizard:
              True, have["lock"]],
             ["WITH_GREETING", "pokemon greeting in the terminal",
              False, have["greeting"]],
+            # A setting rather than a component, so never "installed": it
+            # opens on the config and toggles both ways.
+            ["CAPTION", "dex number and name in the wallpaper corner",
+             config.caption(), False],
         ]
         for item in items:
             if item[3]:

@@ -23,6 +23,7 @@ WITH_ANIMATION=1
 WITH_MENU=1
 WITH_LOCK=1
 WITH_GREETING=0
+CAPTION=""
 MODE=""
 INTENSITY=""
 POKEMON=""
@@ -34,6 +35,8 @@ for arg in "$@"; do
   --no-menu) WITH_MENU=0 ;;
   --no-lock) WITH_LOCK=0 ;;
   --no-greeting) WITH_GREETING=0 ;;
+  --caption) CAPTION=1 ;;
+  --no-caption) CAPTION=0 ;;
   --mode=*) MODE="${arg#*=}" ;;
   --intensity=*) INTENSITY="${arg#*=}" ;;
   --pokemon=*) POKEMON="${arg#*=}" ;;
@@ -64,6 +67,8 @@ non-interactive run) skips the questions.
                      this theme is active, so installing them is harmless.
   --no-lock          skip the Pokemon lock screen plugin.
   --no-greeting      skip the terminal Pokedex greeting.
+  --no-caption       leave the dex number and name off the wallpaper corner
+                     (--caption puts it back). Default on.
   --defaults         take every default without asking.
 USAGE
     exit 0
@@ -127,7 +132,7 @@ key, raw = sys.argv[1], sys.argv[2]
 try:
     value = float(raw) if "." in raw else int(raw)
 except ValueError:
-    value = raw
+    value = {"true": True, "false": False}.get(raw, raw)
 config.set_key(key, value)
 PY
 }
@@ -192,6 +197,8 @@ if (( $# == 0 )) && [[ -t 0 && -t 2 ]]; then
       && WITH_LOCK=1 || WITH_LOCK=0
     ask "Pokemon greeting in the terminal? (sprite + dex entry, via pokedex-greeting)" \
       && WITH_GREETING=1 || WITH_GREETING=0
+    ask "Dex number and name in the wallpaper corner? (small, bottom right)" \
+      && CAPTION=1 || CAPTION=0
   fi
 fi
 
@@ -328,6 +335,12 @@ fi
 if [[ -n $INTENSITY && $INTENSITY != 1.0 ]]; then
   say "setting intensity = $INTENSITY"
   set_config intensity "$INTENSITY"
+fi
+
+if [[ -n $CAPTION ]]; then
+  if (( CAPTION )); then caption=true; else caption=false; fi
+  say "setting caption = $caption"
+  set_config caption "$caption"
 fi
 
 if (( WITH_LOCK )); then

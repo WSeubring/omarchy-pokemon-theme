@@ -269,6 +269,7 @@
         <a class="repolink" href="https://github.com/WSeubring/omarchy-lock-pokemon"
            target="_blank" rel="noreferrer" title="omarchy-lock-pokemon on GitHub">↗</a></label>
       <label><input type="checkbox" id="x_greet"> pokedex greeting in terminal</label>
+      <label><input type="checkbox" id="x_caption"> dex number and name in the wallpaper corner</label>
     </div>
   </section>
 
@@ -464,6 +465,7 @@ $("#install").onclick = async () => {
     POKEMON: S.starterName, PIN: S.starter === "pin" ? 1 : 0,
     WITH_ANIMATION: $("#x_anim").checked, WITH_MENU: $("#x_menu").checked,
     WITH_LOCK: $("#x_lock").checked, WITH_GREETING: $("#x_greet").checked,
+    CAPTION: $("#x_caption").checked,
   };
   await fetch("/api/finish", { method: "POST", body: JSON.stringify(answers) });
   // The server hands these answers to the installer and exits, so this page
@@ -479,7 +481,8 @@ $("#install").onclick = async () => {
   for (const [key, label] of [["WITH_ANIMATION", "animated particles"],
                               ["WITH_MENU", "menu picker"],
                               ["WITH_LOCK", "lock screen"],
-                              ["WITH_GREETING", "terminal greeting"]])
+                              ["WITH_GREETING", "terminal greeting"],
+                              ["CAPTION", "wallpaper caption"]])
     if (answers[key]) rows.push(label);
   $("#donelist").innerHTML = rows.map(r => `<li>${r}</li>`).join("");
   $("#donetext").textContent =
@@ -523,6 +526,9 @@ for (const [id, key, fresh] of [["x_anim", "animation", true],
     box.checked = fresh;
   }
 }
+/* A setting, not a component: opens on the config, toggles both ways. */
+$("#x_caption").checked = CUR.caption;
+
 if (INST.theme)
   document.querySelector("h1 small").textContent =
     "already installed · adjust and re-apply";

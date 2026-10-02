@@ -53,7 +53,7 @@ WALLPAPER_CACHE_SIZE = 120
 BACKGROUNDS = os.path.join(ROOT, "backgrounds")
 
 
-def variant_slug(is_shiny, mode, intensity):
+def variant_slug(is_shiny, mode, intensity, caption=False):
     """The palette-affecting knobs, as a filename fragment.
 
     The wallpaper is a pure function of artwork + palette, so everything that
@@ -67,6 +67,10 @@ def variant_slug(is_shiny, mode, intensity):
         parts.append("-light")
     if intensity != 1.0:
         parts.append("-i%s" % ("%.2f" % intensity).rstrip("0").rstrip("."))
+    # Not palette, but in the composition all the same: toggling the caption
+    # must read as "not current" and re-render.
+    if caption:
+        parts.append("-c")
     return "".join(parts)
 
 
@@ -131,8 +135,25 @@ def load(name):
         return json.load(fh)
 
 
+def caption_font():
+    """The desktop's own font as a file, so the caption matches the bar.
+
+    None when omarchy or fontconfig cannot say, and ImageMagick's default
+    stands in.
+    """
+    try:
+        family = subprocess.run(["omarchy-font-current"], check=True,
+                                capture_output=True, text=True).stdout.strip()
+        path = subprocess.run(["fc-match", "-f", "%{file}", family],
+                              check=True, capture_output=True,
+                              text=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return path if family and os.path.isfile(path) else None
+
+
 def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
-                  variant="", art=None):
+                  variant="", art=None, name=None):
     """Put the wallpaper for this Pokemon in place, rendering it only if new.
 
     The composition is a pure function of the artwork and the palette, and both
@@ -145,6 +166,9 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
     reached. A creature-less render is a failure the desktop can live with for
     one run, so it still lands -- but it never enters the cache, which is keyed
     by Pokemon and would otherwise serve the empty ground back for months.
+
+    `name` captions the corner with the dex number and name; None leaves it
+    bare.
     """
     background = background_path(dex_id, variant, width, height)
     link = atomic.scratch(background)
@@ -153,6 +177,8 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
         os.remove(link)
 
     sparkle = "%d-shiny" % dex_id if is_shiny else None
+    caption = wallpaper.label(dex_id, name) if name else None
+    font = caption_font() if caption else None
     if art is None:
         # Rendered somewhere nothing scans for images: the placement name in
         # backgrounds/ ends in ".new" so no wallpaper chooser offers it, and
@@ -160,7 +186,8 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
         with tempfile.TemporaryDirectory() as scratch:
             drawn = os.path.join(scratch, "ground.jpg")
             wallpaper.render(None, colors, drawn, width, height,
-                             sparkle=sparkle, mode=mode)
+                             sparkle=sparkle, mode=mode, caption=caption,
+                             font=font)
             shutil.move(drawn, link)
     else:
         # The accent is in the key, not just the variant: it decides every
@@ -176,7 +203,8 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
         else:
             os.makedirs(WALLPAPERS, exist_ok=True)
             wallpaper.render(art, colors, cached, width, height,
-                             sparkle=sparkle, mode=mode)
+                             sparkle=sparkle, mode=mode, caption=caption,
+                             font=font)
 
         _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
 
@@ -387,7 +415,8 @@ def main():
                         accent_source=accent_source
                         or type_colors[kinds[0]])
     intensity = config.intensity()
-    variant = variant_slug(choice.shiny, mode, intensity)
+    caption = config.caption()
+    variant = variant_slug(choice.shiny, mode, intensity, caption)
 
     # The name is part of the check, not just the date: editing `pokemon` in the
     # config by hand should take effect on the next run rather than waiting for
@@ -422,7 +451,8 @@ def main():
     # anything the desktop reads is touched, and the files land together.
     if not args.no_wallpaper:
         wallpaper_for(dex_id, choice.shiny, colors, width, height,
-                      mode=mode, variant=variant, art=art)
+                      mode=mode, variant=variant, art=art,
+                      name=name if caption else None)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
                 palette.to_toml(colors, header, mode))
