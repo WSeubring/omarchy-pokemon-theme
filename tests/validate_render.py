@@ -109,6 +109,37 @@ def main():
             failures.append("label for %s is %r, want %r"
                             % (name, wallpaper.label(dex_id, name), want))
 
+    # One render fills every monitor with PreserveAspectCrop, so the caption
+    # has to sit inside what the oddest-shaped screen still shows.
+    for screens, want in ((((2560, 1440),), (2560, 1440)),
+                          (((2560, 1440), (1680, 1050)), (2304, 1440)),
+                          (((2560, 1440), (3440, 1440)), (2560, 1071)),
+                          (((2560, 1440), (1080, 1920)), (810, 1440)),
+                          (((2560, 1440), (1680, 1050), (3440, 1440)),
+                           (2304, 1071))):
+        got = wallpaper.visible_region(2560, 1440, screens)
+        if got != want:
+            failures.append("visible region for %s is %s, want %s"
+                            % (screens, got, want))
+    longest = wallpaper.label(10, "crabominable")
+    for screens in (((2560, 1440),), ((1680, 1050),), ((3440, 1440),),
+                    ((1080, 1920),), ((1280, 1024),)):
+        visible = wallpaper.visible_region(2560, 1440, screens)
+        size, x, y = wallpaper._caption_args(longest, 2560, 1440, visible)
+        left = (2560 - visible[0]) // 2
+        top = (1440 - visible[1]) // 2
+        # Estimated the same way the renderer bounds it.
+        text_w = len(longest) * size * wallpaper.LABEL_ADVANCE
+        if 2560 - x > left + visible[0] or 1440 - y > top + visible[1] \
+                or 2560 - x - text_w < left or 1440 - y - size < top:
+            failures.append("caption falls outside what a %dx%d screen shows"
+                            % screens[0])
+    gen = _load_gen()
+    if gen.variant_slug(False, "dark", 1.0, True) == \
+            gen.variant_slug(False, "dark", 1.0, True, (2304, 1440)):
+        failures.append("moving the caption for another screen keeps the "
+                        "wallpaper's name")
+
     # On by default; a written false must read back as false, not as the
     # string "False" (which is truthy).
     config.PATH = os.path.join(sandbox, "config.toml")
@@ -117,7 +148,6 @@ def main():
     config.set_key("caption", False)
     if config.caption():
         failures.append("caption = false in the config was ignored")
-    gen = _load_gen()
     if gen.variant_slug(False, "dark", 1.0, True) == \
             gen.variant_slug(False, "dark", 1.0, False):
         failures.append("toggling the caption keeps the wallpaper's name")

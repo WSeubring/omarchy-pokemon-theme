@@ -52,9 +52,16 @@ SPARKLE_DRIFT = 0.10
 SPARKLE_OPACITY = 0.72
 
 # The dex number and name, small in the bottom-right corner: a caption, not a
-# title. Sized and inset by the short edge so it holds at any resolution.
+# title. Sized and inset by the short edge of what is actually on screen, so it
+# holds at any resolution and any aspect ratio.
 LABEL_SIZE = 0.016
 LABEL_MARGIN = 0.024
+# Never wider than this much of the visible width: a long name on a narrow
+# portrait screen shrinks rather than running off the left edge.
+LABEL_MAX_WIDTH = 0.6
+# A glyph's advance as a fraction of the point size, generous on purpose: the
+# fit is checked without measuring the text, so it errs toward too small.
+LABEL_ADVANCE = 0.62
 
 # Names the dex slug cannot be title-cased into.
 SPECIAL_NAMES = {
@@ -141,6 +148,40 @@ def label(dex_id, name):
     return "#%03d %s" % (dex_id, shown)
 
 
+def visible_region(width, height, screens):
+    """The centred part of a `width` x `height` render that every screen shows.
+
+    One render serves every monitor, and each fills itself with
+    PreserveAspectCrop: a screen wider than the render loses the top and bottom,
+    a narrower one loses the sides. A 2560x1440 render on a 1680x1050 panel
+    shows only its middle 2304 columns, so anything pinned to the corner of the
+    full canvas is cut off there. `screens` is their (width, height) pairs.
+    """
+    vw, vh = width, height
+    for sw, sh in screens:
+        if sw <= 0 or sh <= 0:
+            continue
+        if sw * height > sh * width:
+            vh = min(vh, width * sh // sw)
+        else:
+            vw = min(vw, height * sw // sh)
+    return vw, vh
+
+
+def _caption_args(caption, width, height, visible):
+    """Pointsize and corner offset for the caption inside `visible`."""
+    vw, vh = visible
+    short = min(vw, vh)
+    size = int(short * LABEL_SIZE)
+    size = min(size, int(vw * LABEL_MAX_WIDTH / (len(caption) * LABEL_ADVANCE)))
+    margin = int(short * LABEL_MARGIN)
+    # -annotate with SouthEast gravity measures in from the canvas corner, so
+    # the cropped-away band is added to the margin.
+    return (max(8, size),
+            (width - vw) // 2 + margin,
+            (height - vh) // 2 + margin)
+
+
 def _footprint(artwork, short):
     """The placed sprite's half-width and half-height, in pixels.
 
@@ -169,12 +210,14 @@ LIGHT_SHINY_GLOW = 0.40
 
 
 def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None,
-           mode="dark", caption=None, font=None):
+           mode="dark", caption=None, font=None, visible=None):
     """Build the wallpaper. `artwork` may be None -- the ground stands alone.
 
     `sparkle` is the seed for a shiny day's sparkles; None leaves them out.
     `caption` is drawn small in the bottom-right corner, in `font` (a file or a
-    family ImageMagick knows) when given.
+    family ImageMagick knows) when given, inside `visible` -- the centred
+    (width, height) every screen shows, from visible_region(); None is the
+    whole canvas.
 
     One ImageMagick invocation, composited beside the destination and renamed into
     place. The layers were separate files once, which cost eight times as long:
@@ -237,14 +280,14 @@ def render(artwork, colors, out_path, width, height, glow=0.45, sparkle=None,
 
     if caption:
         # Drawn in the ground's muted foreground: readable when looked for,
-        # invisible otherwise. `-annotate` with SouthEast gravity measures its
-        # offset in from the corner, so no text metrics are needed.
-        margin = int(short * LABEL_MARGIN)
+        # invisible otherwise.
+        size, x, y = _caption_args(caption, width, height,
+                                   visible or (width, height))
         if font:
             args += ["-font", font]
         args += ["-gravity", "SouthEast", "-fill", colors["dark_foreground"],
-                 "-pointsize", "%d" % max(8, int(short * LABEL_SIZE)),
-                 "-annotate", "+%d+%d" % (margin, margin), caption]
+                 "-pointsize", "%d" % size,
+                 "-annotate", "+%d+%d" % (x, y), caption]
 
     # JPEG q92 over lossless PNG, tried and rolled back: PNG with a Lanczos
     # upscale and dithered 8-bit gradients was technically cleaner but read
