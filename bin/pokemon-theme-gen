@@ -53,12 +53,15 @@ WALLPAPER_CACHE_SIZE = 120
 BACKGROUNDS = os.path.join(ROOT, "backgrounds")
 
 
-def variant_slug(is_shiny, mode, intensity, caption=False):
+def variant_slug(is_shiny, mode, intensity, caption=False, crop=None):
     """The palette-affecting knobs, as a filename fragment.
 
     The wallpaper is a pure function of artwork + palette, so everything that
     changes the palette has to be in the cache key or a mode flip would serve
     yesterday's colours from cache.
+
+    `crop` is the region every screen shows when it is smaller than the render
+    (wallpaper.visible_region); it moves the caption, so it is in the key too.
     """
     parts = []
     if is_shiny:
@@ -71,6 +74,8 @@ def variant_slug(is_shiny, mode, intensity, caption=False):
     # must read as "not current" and re-render.
     if caption:
         parts.append("-c")
+        if crop:
+            parts.append("%dx%d" % crop)
     return "".join(parts)
 
 
@@ -153,7 +158,7 @@ def caption_font():
 
 
 def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
-                  variant="", art=None, name=None):
+                  variant="", art=None, name=None, visible=None):
     """Put the wallpaper for this Pokemon in place, rendering it only if new.
 
     The composition is a pure function of the artwork and the palette, and both
@@ -168,7 +173,8 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
     by Pokemon and would otherwise serve the empty ground back for months.
 
     `name` captions the corner with the dex number and name; None leaves it
-    bare.
+    bare. `visible` is the centred region every screen shows, which the caption
+    keeps inside.
     """
     background = background_path(dex_id, variant, width, height)
     link = atomic.scratch(background)
@@ -187,7 +193,7 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
             drawn = os.path.join(scratch, "ground.jpg")
             wallpaper.render(None, colors, drawn, width, height,
                              sparkle=sparkle, mode=mode, caption=caption,
-                             font=font)
+                             font=font, visible=visible)
             shutil.move(drawn, link)
     else:
         # The accent is in the key, not just the variant: it decides every
@@ -204,7 +210,7 @@ def wallpaper_for(dex_id, is_shiny, colors, width, height, mode="dark",
             os.makedirs(WALLPAPERS, exist_ok=True)
             wallpaper.render(art, colors, cached, width, height,
                              sparkle=sparkle, mode=mode, caption=caption,
-                             font=font)
+                             font=font, visible=visible)
 
         _prune(WALLPAPERS, WALLPAPER_CACHE_SIZE)
 
@@ -241,19 +247,31 @@ def _prune(directory, keep):
             pass
 
 
-def screen_size(fallback=(2560, 1600)):
+def screens(fallback=((2560, 1600),)):
+    """Every attached monitor's (width, height), as it stands on the desk.
+
+    Hyprland reports the panel's native mode; transforms 1, 3, 5 and 7 turn it
+    on its side, and a portrait screen crops a landscape render very
+    differently.
+    """
     try:
         out = subprocess.run(["hyprctl", "monitors", "-j"], check=True,
                              capture_output=True, text=True).stdout
         mons = json.loads(out)
     except (OSError, subprocess.CalledProcessError, ValueError):
-        return fallback
-    if not mons:
-        return fallback
+        return list(fallback)
+    sizes = []
+    for m in mons:
+        w, h = int(m.get("width", 0)), int(m.get("height", 0))
+        if w > 0 and h > 0:
+            sizes.append((h, w) if m.get("transform", 0) % 2 else (w, h))
+    return sizes or list(fallback)
+
+
+def screen_size(sizes):
     # Render for the largest attached monitor; PreserveAspectCrop handles the
     # rest, and upscaling a small render onto a big screen would show.
-    best = max(mons, key=lambda m: m.get("width", 0) * m.get("height", 0))
-    return int(best["width"]), int(best["height"])
+    return max(sizes, key=lambda s: s[0] * s[1])
 
 
 def should_apply(active, chose):
@@ -397,8 +415,13 @@ def main():
     # depends on it: a monitor change must read as "not current" and re-render.
     if args.size:
         width, height = (int(v) for v in args.size.lower().split("x"))
+        attached = [(width, height)]
     else:
-        width, height = screen_size()
+        attached = screens()
+        width, height = screen_size(attached)
+    # The part of the render every monitor shows: the caption stays inside it,
+    # or a screen of another shape crops it off.
+    visible = wallpaper.visible_region(width, height, attached)
 
     # Fetched before the early-out rather than with the wallpaper: the
     # creature's own colours are the palette's starting point, and in
@@ -416,7 +439,8 @@ def main():
                         or type_colors[kinds[0]])
     intensity = config.intensity()
     caption = config.caption()
-    variant = variant_slug(choice.shiny, mode, intensity, caption)
+    variant = variant_slug(choice.shiny, mode, intensity, caption,
+                           None if visible == (width, height) else visible)
 
     # The name is part of the check, not just the date: editing `pokemon` in the
     # config by hand should take effect on the next run rather than waiting for
@@ -452,7 +476,7 @@ def main():
     if not args.no_wallpaper:
         wallpaper_for(dex_id, choice.shiny, colors, width, height,
                       mode=mode, variant=variant, art=art,
-                      name=name if caption else None)
+                      name=name if caption else None, visible=visible)
 
     atomic.text(os.path.join(ROOT, "colors.toml"),
                 palette.to_toml(colors, header, mode))
